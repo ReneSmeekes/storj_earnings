@@ -17,5 +17,5 @@ _Note: If you omit the path it will look in the current working directory._
 
 Earnings for previous months:
 ```
-python earnings.py /path/to/storj/data
+python earnings.py /path/to/storj/data 2019-05
 ```
