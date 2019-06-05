@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+# Version: 4.0.1
+
 from datetime import datetime
 
 import math
@@ -117,7 +120,9 @@ usd_get_repair = list()
 usd_disk = list()
 usd_sum = list()
 
-for line in p.stdout.readlines():
+outs, errs = p.communicate()
+
+for line in outs.splitlines():
     data = line.split('|')
     put_total = put_total + int(data[1])
     get_total = get_total + int(data[2])
@@ -186,5 +191,3 @@ for i in range(len(usd_sum)):
 
 if len(sys.argv) == 3:
     print("Note: Only bandwidth is included when month parameter is used. Data stored can't be estimated for historic months.\n")
-
-retval = p.wait()
