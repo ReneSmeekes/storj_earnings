@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Version: 4.0.1
+version = "4.0.2"
 
 from datetime import datetime
 
@@ -167,7 +167,7 @@ usd_disk_total = (1.5 / (1000.00**4)) * disk_est
 usd_sum_total = usd_get_total + usd_get_audit_total + usd_get_repair_total + usd_disk_total
 
 
-print("\n{}".format(mdate.strftime('%B %Y')))
+print("\n{} (Version: {})".format(mdate.strftime('%B %Y'), version))
 
 print("\t\t\tType\t\tDisk\t   Bandwidth\t\tPayout")
 print("Upload\t\t\tIngress\t\t\t{}\t    -not paid-".format(formatSize(put_total)))
