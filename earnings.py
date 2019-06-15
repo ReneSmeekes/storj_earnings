@@ -122,8 +122,6 @@ usd_sum = list()
 
 outs, errs = p.communicate()
 
-print(outs)
-
 for line in outs.splitlines():
     data = line.split('|')
     put_total = put_total + int(data[1])
