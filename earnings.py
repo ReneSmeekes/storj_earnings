@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-version = "4.0.2"
+version = "4.1.0"
 
 from datetime import datetime
 
@@ -122,6 +122,8 @@ usd_sum = list()
 
 outs, errs = p.communicate()
 
+print(outs)
+
 for line in outs.splitlines():
     data = line.split('|')
     put_total = put_total + int(data[1])
@@ -179,6 +181,7 @@ if len(sys.argv) == 3:
     print("_______________________________________________________________________________+\n")
     print("Total\t\t\t\t\t\t{}\t{:10.2f} USD".format(formatSize(sum_total), usd_sum_total))
 else:
+    print("Disk Current\t\tStorage\t{}\t\t\t    -not paid-".format(formatSize(disk_total)))
     print("Disk Average (Estimate)\tStorage\t{}\t\t\t{:10.2f} USD".format(formatSize(disk_est), usd_disk_total))
     print("_______________________________________________________________________________+\n")
     print("Total\t\t\t\t{}\t{}\t{:10.2f} USD".format(formatSize(disk_est), formatSize(sum_total), usd_sum_total))
