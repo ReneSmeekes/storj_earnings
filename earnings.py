@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-version = "4.1.0"
+version = "4.1.1"
 
 from datetime import datetime
 
@@ -34,7 +34,7 @@ if len(sys.argv) == 3:
 	except:
 		sys.exit('ERROR: Invalid month argument. \nUse YYYY-MM as format. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '" "' + datetime.now().strftime('%Y-%m') + '"')
 else:
-	mdate = datetime.now()
+	mdate = datetime.utcnow()
 
 def formatSize(size):
     "Formats size to be displayed in the most fitting unit"
@@ -167,7 +167,11 @@ usd_disk_total = (1.5 / (1000.00**4)) * disk_est
 usd_sum_total = usd_get_total + usd_get_audit_total + usd_get_repair_total + usd_disk_total
 
 
-print("\n{} (Version: {})".format(mdate.strftime('%B %Y'), version))
+if len(sys.argv) == 3:
+    print("\n{} (Version: {})".format(mdate.strftime('%B %Y'), version))    
+else:
+    print("\n{} (Version: {})\t\t\t[snapshot: {}]".format(mdate.strftime('%B %Y'), version, mdate.strftime('%Y-%m-%d %H:%M:%SZ')))
+
 
 print("\t\t\tType\t\tDisk\t   Bandwidth\t\tPayout")
 print("Upload\t\t\tIngress\t\t\t{}\t    -not paid-".format(formatSize(put_total)))
