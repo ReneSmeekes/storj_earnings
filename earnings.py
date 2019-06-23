@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-version = "4.1.1"
+version = "4.2.0"
 
 from datetime import datetime
 
@@ -124,6 +124,8 @@ outs, errs = p.communicate()
 
 for line in outs.splitlines():
     data = line.split('|')
+    if len(data) < 7:
+        sys.exit('ERROR SQLite3: ' + outs)
     put_total = put_total + int(data[1])
     get_total = get_total + int(data[2])
     get_audit_total = get_audit_total + int(data[3])
