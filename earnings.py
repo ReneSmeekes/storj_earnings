@@ -1,5 +1,6 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
-version = "4.2.0"
+version = "4.2.1"
 
 from datetime import datetime
 
