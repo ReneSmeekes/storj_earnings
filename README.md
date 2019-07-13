@@ -8,7 +8,7 @@ This script was tested on Windows 10 and Linux, with Python 2.7 and 3.7.
 Other OS's and versions will likely also work.
 
 ### Warning
-If you are running on Windows or MacOS, stop the node, copy the info.db to a different location and run the script from there. Running the script on these OS's while the node is using it could lead to corruption of the database, which will kill the node.
+Especially if you are running on Windows or MacOS, stop the node, copy the info.db to a different location and run the script from there. Running the script on these OS's while the node is using it could lead to corruption of the database, which will kill the node. This approach is best practice on Linux as well.
 
 ## Usage
 Earnings for current month:
