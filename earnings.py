@@ -1,6 +1,5 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
-version = "4.2.1"
+version = "5.0.0"
 
 from datetime import datetime
 
@@ -58,12 +57,12 @@ def formatSize(size):
 date_from = datetime(mdate.year, mdate.month, 1)
 date_to = datetime(mdate.year + int(mdate.month / 12), ((mdate.month % 12) + 1), 1)
 
-time_window = "created_at >= '" + date_from.strftime("%Y-%m-%d") + "' AND created_at < '" + date_to.strftime("%Y-%m-%d") + "'"
+time_window = "interval_start >= '" + date_from.strftime("%Y-%m-%d") + "' AND interval_start < '" + date_to.strftime("%Y-%m-%d") + "'"
 
 if len(sys.argv) != 3:   
-    satellites = 'SELECT satellite_id FROM bandwidth_usage WHERE ' + time_window + 'UNION SELECT satellite_id FROM pieceinfo'
+    satellites = 'SELECT satellite_id FROM bandwidth_usage_rollups WHERE ' + time_window + 'UNION SELECT satellite_id FROM pieceinfo_'
 else:
-    satellites = 'SELECT DISTINCT satellite_id FROM bandwidth_usage WHERE ' + time_window
+    satellites = 'SELECT DISTINCT satellite_id FROM bandwidth_usage_rollups WHERE ' + time_window
 
 cmd = ('sqlite3 ' + dbPath + ' "SELECT hex(x.satellite_id) satellite'
     ' ,COALESCE(a.put_total,0) put_total'
@@ -79,7 +78,7 @@ cmd = ('sqlite3 ' + dbPath + ' "SELECT hex(x.satellite_id) satellite'
     '   SELECT'
     '   satellite_id'
     '   ,SUM(piece_size) disk_total'
-    '   FROM pieceinfo'
+    '   FROM pieceinfo_'
     '   GROUP BY satellite_id'
     ' ) b'
     ' ON x.satellite_id = b.satellite_id'
@@ -91,7 +90,7 @@ cmd = ('sqlite3 ' + dbPath + ' "SELECT hex(x.satellite_id) satellite'
     '   ,SUM(CASE WHEN action = 3 THEN amount ELSE 0 END) get_audit_total'
     '   ,SUM(CASE WHEN action = 4 THEN amount ELSE 0 END) get_repair_total'
     '   ,SUM(CASE WHEN action = 5 THEN amount ELSE 0 END) put_repair_total'
-    '   FROM bandwidth_usage'
+    '   FROM bandwidth_usage_rollups'
     '   WHERE ' + time_window +
     '   GROUP BY satellite_id'
     ' ) a'
