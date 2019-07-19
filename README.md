@@ -2,7 +2,7 @@
 Earnings calculation script for Storj V3 storagenodes
 
 ## Prerequisites
-Python and SQLite3 are required to run this script.
+Python is required to run this script.
 
 This script was tested on Windows 10 and Linux, with Python 2.7 and 3.7. 
 Other OS's and versions will likely also work.
