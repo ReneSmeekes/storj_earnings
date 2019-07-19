@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-version = "5.0.0"
+version = "5.2.0"
 
 from datetime import datetime
 
 import math
 import os
-import subprocess
 import sys
+import sqlite3
 
 if len(sys.argv) > 3:
 	sys.exit('ERROR: No more than two argument allowed. \nIf your path contains spaces use quotes. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
@@ -59,12 +59,16 @@ date_to = datetime(mdate.year + int(mdate.month / 12), ((mdate.month % 12) + 1),
 
 time_window = "interval_start >= '" + date_from.strftime("%Y-%m-%d") + "' AND interval_start < '" + date_to.strftime("%Y-%m-%d") + "'"
 
-if len(sys.argv) != 3:   
-    satellites = 'SELECT satellite_id FROM bandwidth_usage_rollups WHERE ' + time_window + 'UNION SELECT satellite_id FROM pieceinfo_'
-else:
-    satellites = 'SELECT DISTINCT satellite_id FROM bandwidth_usage_rollups WHERE ' + time_window
+satellites = (  'SELECT DISTINCT satellite_id FROM ('
+                '   SELECT satellite_id, interval_start FROM bandwidth_usage_rollups'
+                '   UNION'
+                '   SELECT satellite_id, created_at interval_start FROM bandwidth_usage)'
+                'WHERE ' + time_window )
 
-cmd = ('sqlite3 ' + dbPath + ' "SELECT hex(x.satellite_id) satellite'
+if len(sys.argv) != 3:   
+    satellites = (  satellites + ' UNION SELECT DISTINCT satellite_id FROM pieceinfo_')
+
+query = ('SELECT hex(x.satellite_id) satellite'
     ' ,COALESCE(a.put_total,0) put_total'
     ' ,COALESCE(a.get_total,0) get_total'
     ' ,COALESCE(a.get_audit_total,0) get_audit_total'
@@ -72,7 +76,7 @@ cmd = ('sqlite3 ' + dbPath + ' "SELECT hex(x.satellite_id) satellite'
     ' ,COALESCE(a.put_repair_total,0) put_repair_total'
     ' ,COALESCE(b.disk_total,0) disk_total'
     ' FROM ('
-    + satellites +
+     + satellites +
     ' ) x'
     ' LEFT JOIN ('
     '   SELECT'
@@ -90,14 +94,16 @@ cmd = ('sqlite3 ' + dbPath + ' "SELECT hex(x.satellite_id) satellite'
     '   ,SUM(CASE WHEN action = 3 THEN amount ELSE 0 END) get_audit_total'
     '   ,SUM(CASE WHEN action = 4 THEN amount ELSE 0 END) get_repair_total'
     '   ,SUM(CASE WHEN action = 5 THEN amount ELSE 0 END) put_repair_total'
-    '   FROM bandwidth_usage_rollups'
+    '   FROM (  SELECT satellite_id,action,amount,interval_start FROM bandwidth_usage_rollups'
+    '           UNION'
+    '           SELECT satellite_id,action,amount,created_at interval_start FROM bandwidth_usage) a'
     '   WHERE ' + time_window +
     '   GROUP BY satellite_id'
     ' ) a'
     ' ON x.satellite_id = a.satellite_id'
-    ' ORDER BY satellite;"')
+    ' ORDER BY satellite;')
 
-p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+con = sqlite3.connect(dbPath)
 
 put_total = 0
 get_total = 0
@@ -120,12 +126,10 @@ usd_get_repair = list()
 usd_disk = list()
 usd_sum = list()
 
-outs, errs = p.communicate()
 
-for line in outs.splitlines():
-    data = line.split('|')
+for data in con.execute(query):
     if len(data) < 7:
-        sys.exit('ERROR SQLite3: ' + outs)
+        sys.exit('ERROR SQLite3: ' + data)
     put_total = put_total + int(data[1])
     get_total = get_total + int(data[2])
     get_audit_total = get_audit_total + int(data[3])
