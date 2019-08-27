@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-version = "5.2.0"
+version = "5.3.0"
 
 from datetime import datetime
 
@@ -66,7 +66,7 @@ satellites = (  'SELECT DISTINCT satellite_id FROM ('
                 'WHERE ' + time_window )
 
 if len(sys.argv) != 3:   
-    satellites = (  satellites + ' UNION SELECT DISTINCT satellite_id FROM pieceinfo_')
+    satellites = (  satellites + ' UNION SELECT DISTINCT satellite_id FROM piece_space_used where satellite_id IS NOT NULL')
 
 query = ('SELECT hex(x.satellite_id) satellite'
     ' ,COALESCE(a.put_total,0) put_total'
@@ -74,17 +74,12 @@ query = ('SELECT hex(x.satellite_id) satellite'
     ' ,COALESCE(a.get_audit_total,0) get_audit_total'
     ' ,COALESCE(a.get_repair_total,0) get_repair_total'
     ' ,COALESCE(a.put_repair_total,0) put_repair_total'
-    ' ,COALESCE(b.disk_total,0) disk_total'
+    ' ,COALESCE(b.total,0) disk_total'
     ' FROM ('
      + satellites +
     ' ) x'
-    ' LEFT JOIN ('
-    '   SELECT'
-    '   satellite_id'
-    '   ,SUM(piece_size) disk_total'
-    '   FROM pieceinfo_'
-    '   GROUP BY satellite_id'
-    ' ) b'
+    ' LEFT JOIN '
+    ' piece_space_used b'
     ' ON x.satellite_id = b.satellite_id'
     ' LEFT JOIN ('
     '   SELECT'
