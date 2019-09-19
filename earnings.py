@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-version = "5.3.0"
+version = "6.0.0"
 
+from calendar import monthrange
 from datetime import datetime
 
 import math
@@ -59,21 +60,36 @@ date_to = datetime(mdate.year + int(mdate.month / 12), ((mdate.month % 12) + 1),
 
 time_window = "interval_start >= '" + date_from.strftime("%Y-%m-%d") + "' AND interval_start < '" + date_to.strftime("%Y-%m-%d") + "'"
 
-satellites = (  'SELECT DISTINCT satellite_id FROM ('
+satellites = (  'SELECT DISTINCT satellite_id,'
+                '       CASE hex(satellite_id)'
+                "           WHEN 'A28B4F04E10BAE85D67F4C6CB82BF8D4C0F0F47A8EA72627524DEB6EC0000000' THEN 'us-central-1'"
+                "           WHEN 'AF2C42003EFC826AB4361F73F9D890942146FE0EBE806786F8E7190800000000' THEN 'europe-west-1'"
+                "           WHEN '84A74C2CD43C5BA76535E1F42F5DF7C287ED68D33522782F4AFABFDB40000000' THEN 'asia-east-1'"
+                "           WHEN '004AE89E970E703DF42BA4AB1416A3B30B7E1D8E14AA0E558F7EE26800000000' THEN 'stefan-benten'"
+                "           ELSE '-UNKNOWN-'"
+                '       END satellite_name,'
+                '       CASE hex(satellite_id)'
+                "           WHEN 'A28B4F04E10BAE85D67F4C6CB82BF8D4C0F0F47A8EA72627524DEB6EC0000000' THEN 1"
+                "           WHEN 'AF2C42003EFC826AB4361F73F9D890942146FE0EBE806786F8E7190800000000' THEN 2"
+                "           WHEN '84A74C2CD43C5BA76535E1F42F5DF7C287ED68D33522782F4AFABFDB40000000' THEN 3"
+                "           WHEN '004AE89E970E703DF42BA4AB1416A3B30B7E1D8E14AA0E558F7EE26800000000' THEN 4"
+                "           ELSE 999"
+                '       END satellite_num '
+                'FROM ('
                 '   SELECT satellite_id, interval_start FROM bandwidth_usage_rollups'
                 '   UNION'
-                '   SELECT satellite_id, created_at interval_start FROM bandwidth_usage)'
+                '   SELECT satellite_id, created_at interval_start FROM bandwidth_usage'
+                '   UNION'
+                '   SELECT satellite_id, interval_start FROM storage_usage)'
                 'WHERE ' + time_window )
 
-if len(sys.argv) != 3:   
-    satellites = (  satellites + ' UNION SELECT DISTINCT satellite_id FROM piece_space_used where satellite_id IS NOT NULL')
-
-query = ('SELECT hex(x.satellite_id) satellite'
+query = ('SELECT x.satellite_name satellite'
     ' ,COALESCE(a.put_total,0) put_total'
     ' ,COALESCE(a.get_total,0) get_total'
     ' ,COALESCE(a.get_audit_total,0) get_audit_total'
     ' ,COALESCE(a.get_repair_total,0) get_repair_total'
     ' ,COALESCE(a.put_repair_total,0) put_repair_total'
+    ' ,COALESCE(c.bh_total,0) bh_total'
     ' ,COALESCE(b.total,0) disk_total'
     ' FROM ('
      + satellites +
@@ -96,7 +112,16 @@ query = ('SELECT hex(x.satellite_id) satellite'
     '   GROUP BY satellite_id'
     ' ) a'
     ' ON x.satellite_id = a.satellite_id'
-    ' ORDER BY satellite;')
+    ' LEFT JOIN ('
+    '   SELECT'
+    '   satellite_id'
+    '   ,SUM(at_rest_total) bh_total'
+    '   FROM storage_usage'
+    '   WHERE ' + time_window +
+    '   GROUP BY satellite_id'
+    ' ) c'
+    ' ON x.satellite_id = c.satellite_id'
+    ' ORDER BY x.satellite_num;')
 
 con = sqlite3.connect(dbPath)
 
@@ -106,21 +131,25 @@ get_audit_total = 0
 get_repair_total = 0
 put_repair_total = 0
 disk_total = 0
+bh_total = 0
 
+sat_name = list()
 put = list()
 get = list()
 get_audit = list()
 get_repair = list()
 put_repair = list()
 disk = list()
+bh = list()
 sums = list()
 
 usd_get = list()
 usd_get_audit = list()
 usd_get_repair = list()
-usd_disk = list()
+usd_bh = list()
 usd_sum = list()
 
+hours_month = monthrange(mdate.year, mdate.month)[1] * 24
 
 for data in con.execute(query):
     if len(data) < 7:
@@ -130,70 +159,70 @@ for data in con.execute(query):
     get_audit_total = get_audit_total + int(data[3])
     get_repair_total = get_repair_total + int(data[4])
     put_repair_total = put_repair_total + int(data[5])
+    bh_total = bh_total + int(data[6])
     if len(sys.argv) != 3:   
-        disk_total = disk_total + int(data[6])
+        disk_total = disk_total + int(data[7])
 
     #by satellite
+    sat_name.append(data[0])
     put.append(int(data[1]))
     get.append(int(data[2]))
     get_audit.append(int(data[3]))
     get_repair.append(int(data[4]))
     put_repair.append(int(data[5]))
+    bh.append(int(data[6]))
     
     usd_get.append((20 / (1000.00**4)) * get[-1])
     usd_get_audit.append((10 / (1000.00**4)) * get_audit[-1])
     usd_get_repair.append((10 / (1000.00**4)) * get_repair[-1])
+    usd_bh.append((1.5 / (1000.00**4)) * (bh[-1] / hours_month))
 
     if len(sys.argv) != 3:   
         disk.append(int(data[6]))
-        usd_disk.append((1.5 / (1000.00**4)) * (max(disk[-1] - (put[-1] + put_repair[-1]), 0) + disk[-1]) / 2)
     else:
         disk.append(0)
-        usd_disk.append(0)
 
     sums.append(put[-1] + get[-1] + get_audit[-1] + get_repair[-1] + put_repair[-1])
     
-    usd_sum.append(usd_get[-1] + usd_get_audit[-1] + usd_get_repair[-1] + usd_disk[-1])
+    usd_sum.append(usd_get[-1] + usd_get_audit[-1] + usd_get_repair[-1] + usd_bh[-1])
 
 sum_total = put_total + get_total + get_audit_total + get_repair_total + put_repair_total
 
 usd_get_total = (20 / (1000.00**4)) * get_total
 usd_get_audit_total = (10 / (1000.00**4)) * get_audit_total
 usd_get_repair_total = (10 / (1000.00**4)) * get_repair_total
+usd_bh_total = (1.5 / (1000.00**4)) * (bh_total / hours_month)
 
-disk_min_est = max(disk_total - (put_total + put_repair_total), 0)
-disk_est = (disk_min_est + disk_total) / 2
-usd_disk_total = (1.5 / (1000.00**4)) * disk_est
-
-usd_sum_total = usd_get_total + usd_get_audit_total + usd_get_repair_total + usd_disk_total
+usd_sum_total = usd_get_total + usd_get_audit_total + usd_get_repair_total + usd_bh_total
 
 
 if len(sys.argv) == 3:
-    print("\n{} (Version: {})".format(mdate.strftime('%B %Y'), version))    
+    print("\033[4m\n{} (Version: {})\033[0m".format(mdate.strftime('%B %Y'), version))    
 else:
-    print("\n{} (Version: {})\t\t\t[snapshot: {}]".format(mdate.strftime('%B %Y'), version, mdate.strftime('%Y-%m-%d %H:%M:%SZ')))
+    print("\033[4m\n{} (Version: {})\t\t\t[snapshot: {}]\033[0m".format(mdate.strftime('%B %Y'), version, mdate.strftime('%Y-%m-%d %H:%M:%SZ')))
 
 
-print("\t\t\tType\t\tDisk\t   Bandwidth\t\tPayout")
+print("\t\t\tTYPE\t\tDISK\t   BANDWIDTH\t\tPAYOUT")
 print("Upload\t\t\tIngress\t\t\t{}\t    -not paid-".format(formatSize(put_total)))
 print("Upload Repair\t\tIngress\t\t\t{}\t    -not paid-".format(formatSize(put_repair_total)))
 print("Download\t\tEgress\t\t\t{}\t{:10.2f} USD".format(formatSize(get_total), usd_get_total))
 print("Download Repair\t\tEgress\t\t\t{}\t{:10.2f} USD".format(formatSize(get_repair_total), usd_get_repair_total))
 print("Download Audit\t\tEgress\t\t\t{}\t{:10.2f} USD".format(formatSize(get_audit_total), usd_get_audit_total))
 if len(sys.argv) == 3:
-    print("_______________________________________________________________________________+\n")
+    print("_______________________________________________________________________________+")
     print("Total\t\t\t\t\t\t{}\t{:10.2f} USD".format(formatSize(sum_total), usd_sum_total))
 else:
     print("Disk Current\t\tStorage\t{}\t\t\t    -not paid-".format(formatSize(disk_total)))
-    print("Disk Average (Estimate)\tStorage\t{}\t\t\t{:10.2f} USD".format(formatSize(disk_est), usd_disk_total))
-    print("_______________________________________________________________________________+\n")
-    print("Total\t\t\t\t{}\t{}\t{:10.2f} USD".format(formatSize(disk_est), formatSize(sum_total), usd_sum_total))
+    print("Disk Average\t\tStorage\t{}/Month\t\t    -not paid-".format(formatSize(bh_total / hours_month)))
+    print("Disk Usage\t\tStorage\t{}h\t\t\t{:10.2f} USD".format(formatSize(bh_total), usd_bh_total))
+    print("_______________________________________________________________________________+")
+    print("Total\t\t\t\t{}h\t{}\t{:10.2f} USD".format(formatSize(bh_total), formatSize(sum_total), usd_sum_total))
 
-print("\nPayout and escrow by satellite:")
-print("Satellite\tType\t  Month 1-3\t  Month 4-6\t  Month 7-9\t  Month 10+")
+print("\033[4m\nPayout and escrow by satellite:\033[0m")
+print("SATELLITE\tTYPE\t  MONTH 1-3\t  MONTH 4-6\t  MONTH 7-9\t  MONTH 10+")
 for i in range(len(usd_sum)):
-    print("{:9d}\tPayout\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD".format(i+1,usd_sum[i]*.25,usd_sum[i]*.5,usd_sum[i]*.75,usd_sum[i]))
-    print("{:9d}\tEscrow\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\n".format(i+1,usd_sum[i]*.75,usd_sum[i]*.5,usd_sum[i]*.25,0))
+    print("{}\tPayout\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD".format(sat_name[i],usd_sum[i]*.25,usd_sum[i]*.5,usd_sum[i]*.75,usd_sum[i]))
+    print("\t\tEscrow\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\n".format(usd_sum[i]*.75,usd_sum[i]*.5,usd_sum[i]*.25,0))
 
 if len(sys.argv) == 3:
-    print("Note: Only bandwidth is included when month parameter is used. Data stored can't be estimated for historic months.\n")
+    print("Note: Only bandwidth usage is included when month parameter is used. Storage usage isn't available for historic months.\n")
