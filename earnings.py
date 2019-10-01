@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-version = "6.0.0"
+version = "6.1.0"
 
 from calendar import monthrange
 from datetime import datetime
@@ -57,6 +57,7 @@ def formatSize(size):
 
 date_from = datetime(mdate.year, mdate.month, 1)
 date_to = datetime(mdate.year + int(mdate.month / 12), ((mdate.month % 12) + 1), 1)
+year_month = (mdate.year * 100) + mdate.month
 
 time_window = "interval_start >= '" + date_from.strftime("%Y-%m-%d") + "' AND interval_start < '" + date_to.strftime("%Y-%m-%d") + "'"
 
@@ -208,21 +209,20 @@ print("Upload Repair\t\tIngress\t\t\t{}\t    -not paid-".format(formatSize(put_r
 print("Download\t\tEgress\t\t\t{}\t{:10.2f} USD".format(formatSize(get_total), usd_get_total))
 print("Download Repair\t\tEgress\t\t\t{}\t{:10.2f} USD".format(formatSize(get_repair_total), usd_get_repair_total))
 print("Download Audit\t\tEgress\t\t\t{}\t{:10.2f} USD".format(formatSize(get_audit_total), usd_get_audit_total))
-if len(sys.argv) == 3:
-    print("_______________________________________________________________________________+")
-    print("Total\t\t\t\t\t\t{}\t{:10.2f} USD".format(formatSize(sum_total), usd_sum_total))
+if year_month < 201909:
+        print("\n\t   ** Storage usage not available prior to September 2019 **")
+        print("_______________________________________________________________________________+")
+        print("Total\t\t\t\t\t\t{}\t{:10.2f} USD".format(formatSize(sum_total), usd_sum_total))
 else:
-    print("Disk Current\t\tStorage\t{}\t\t\t    -not paid-".format(formatSize(disk_total)))
-    print("Disk Average\t\tStorage\t{}/Month\t\t    -not paid-".format(formatSize(bh_total / hours_month)))
-    print("Disk Usage\t\tStorage\t{}h\t\t\t{:10.2f} USD".format(formatSize(bh_total), usd_bh_total))
+    if len(sys.argv) < 3:
+    	print("Disk Current\t\tStorage\t{}\t\t\t    -not paid-".format(formatSize(disk_total)))
+    print("Disk Average Month\tStorage\t{}m\t\t\t{:10.2f} USD".format(formatSize(bh_total / hours_month), usd_bh_total))
+    print("Disk Usage\t\tStorage\t{}h\t\t\t    -not paid-".format(formatSize(bh_total)))
     print("_______________________________________________________________________________+")
-    print("Total\t\t\t\t{}h\t{}\t{:10.2f} USD".format(formatSize(bh_total), formatSize(sum_total), usd_sum_total))
+    print("Total\t\t\t\t{}m\t{}\t{:10.2f} USD".format(formatSize(bh_total  / hours_month), formatSize(sum_total), usd_sum_total))
 
 print("\033[4m\nPayout and escrow by satellite:\033[0m")
 print("SATELLITE\tTYPE\t  MONTH 1-3\t  MONTH 4-6\t  MONTH 7-9\t  MONTH 10+")
 for i in range(len(usd_sum)):
     print("{}\tPayout\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD".format(sat_name[i],usd_sum[i]*.25,usd_sum[i]*.5,usd_sum[i]*.75,usd_sum[i]))
     print("\t\tEscrow\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\n".format(usd_sum[i]*.75,usd_sum[i]*.5,usd_sum[i]*.25,0))
-
-if len(sys.argv) == 3:
-    print("Note: Only bandwidth usage is included when month parameter is used. Storage usage isn't available for historic months.\n")
