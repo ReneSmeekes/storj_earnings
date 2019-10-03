@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-version = "6.1.0"
+version = "7.0.0"
 
 from calendar import monthrange
 from datetime import datetime
@@ -20,14 +20,23 @@ else:
 if os.path.exists(configPath) == False:
 	sys.exit('ERROR: Path does not exist: "' + configPath + '"')
 
-dbPath = os.path.join(configPath,"storage","info.db")
-dbDirectPath = os.path.join(configPath,"info.db")
+if os.path.isfile(os.path.join(configPath,"bandwidth.db")) == True:
+    dbPath = configPath
+else:
+    dbPath = os.path.join(configPath,"storage")
 
-if os.path.isfile(dbDirectPath) == True:
-    dbPath=dbDirectPath
+dbPathBW = os.path.join(dbPath,"bandwidth.db")
+dbPathSU = os.path.join(dbPath,"storage_usage.db")
+dbPathPSU = os.path.join(dbPath,"piece_spaced_used.db")
 
-if os.path.isfile(dbPath) == False:
-	sys.exit('ERROR: info.db not found at: "' + dbPath + '" or "' + dbDirectPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
+if os.path.isfile(dbPathBW) == False:
+	sys.exit('ERROR: bandwidth.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
+
+if os.path.isfile(dbPathSU) == False:
+	sys.exit('ERROR: storage_usage.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
+
+if os.path.isfile(dbPathPSU) == False:
+	sys.exit('ERROR: piece_spaced_used.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
 
 if len(sys.argv) == 3:
 	try:
@@ -81,7 +90,7 @@ satellites = (  'SELECT DISTINCT satellite_id,'
                 '   UNION'
                 '   SELECT satellite_id, created_at interval_start FROM bandwidth_usage'
                 '   UNION'
-                '   SELECT satellite_id, interval_start FROM storage_usage)'
+                '   SELECT satellite_id, interval_start FROM su.storage_usage)'
                 'WHERE ' + time_window )
 
 query = ('SELECT x.satellite_name satellite'
@@ -96,7 +105,7 @@ query = ('SELECT x.satellite_name satellite'
      + satellites +
     ' ) x'
     ' LEFT JOIN '
-    ' piece_space_used b'
+    ' psu.piece_space_used b'
     ' ON x.satellite_id = b.satellite_id'
     ' LEFT JOIN ('
     '   SELECT'
@@ -117,14 +126,19 @@ query = ('SELECT x.satellite_name satellite'
     '   SELECT'
     '   satellite_id'
     '   ,SUM(at_rest_total) bh_total'
-    '   FROM storage_usage'
+    '   FROM su.storage_usage'
     '   WHERE ' + time_window +
     '   GROUP BY satellite_id'
     ' ) c'
     ' ON x.satellite_id = c.satellite_id'
     ' ORDER BY x.satellite_num;')
 
-con = sqlite3.connect(dbPath)
+con = sqlite3.connect(dbPathBW)
+
+tSU = (dbPathSU,)
+tPSU = (dbPathPSU,)
+print(con.execute('ATTACH DATABASE ? AS su;',tSU))
+print(con.execute('ATTACH DATABASE ? AS psu;',tPSU))
 
 put_total = 0
 get_total = 0
