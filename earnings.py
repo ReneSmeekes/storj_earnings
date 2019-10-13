@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-version = "7.0.0"
+version = "7.0.1"
 
 from calendar import monthrange
 from datetime import datetime
@@ -137,8 +137,8 @@ con = sqlite3.connect(dbPathBW)
 
 tSU = (dbPathSU,)
 tPSU = (dbPathPSU,)
-print(con.execute('ATTACH DATABASE ? AS su;',tSU))
-print(con.execute('ATTACH DATABASE ? AS psu;',tPSU))
+con.execute('ATTACH DATABASE ? AS su;',tSU)
+con.execute('ATTACH DATABASE ? AS psu;',tPSU)
 
 put_total = 0
 get_total = 0
