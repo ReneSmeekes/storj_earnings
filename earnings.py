@@ -17,10 +17,10 @@ if len(sys.argv) < 2:
 else:
     configPath = sys.argv[1]
 
-if os.path.exists(configPath) == False:
+if not os.path.exists(configPath):
 	sys.exit('ERROR: Path does not exist: "' + configPath + '"')
 
-if os.path.isfile(os.path.join(configPath,"bandwidth.db")) == True:
+if os.path.isfile(os.path.join(configPath,"bandwidth.db")):
     dbPath = configPath
 else:
     dbPath = os.path.join(configPath,"storage")
@@ -29,13 +29,13 @@ dbPathBW = os.path.join(dbPath,"bandwidth.db")
 dbPathSU = os.path.join(dbPath,"storage_usage.db")
 dbPathPSU = os.path.join(dbPath,"piece_spaced_used.db")
 
-if os.path.isfile(dbPathBW) == False:
+if not os.path.isfile(dbPathBW):
 	sys.exit('ERROR: bandwidth.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
 
-if os.path.isfile(dbPathSU) == False:
+if not os.path.isfile(dbPathSU):
 	sys.exit('ERROR: storage_usage.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
 
-if os.path.isfile(dbPathPSU) == False:
+if not os.path.isfile(dbPathPSU):
 	sys.exit('ERROR: piece_spaced_used.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
 
 if len(sys.argv) == 3:
