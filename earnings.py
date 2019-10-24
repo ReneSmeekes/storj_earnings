@@ -70,68 +70,70 @@ year_month = (mdate.year * 100) + mdate.month
 
 time_window = "interval_start >= '" + date_from.strftime("%Y-%m-%d") + "' AND interval_start < '" + date_to.strftime("%Y-%m-%d") + "'"
 
-satellites = (  'SELECT DISTINCT satellite_id,'
-                '       CASE hex(satellite_id)'
-                "           WHEN 'A28B4F04E10BAE85D67F4C6CB82BF8D4C0F0F47A8EA72627524DEB6EC0000000' THEN 'us-central-1'"
-                "           WHEN 'AF2C42003EFC826AB4361F73F9D890942146FE0EBE806786F8E7190800000000' THEN 'europe-west-1'"
-                "           WHEN '84A74C2CD43C5BA76535E1F42F5DF7C287ED68D33522782F4AFABFDB40000000' THEN 'asia-east-1'"
-                "           WHEN '004AE89E970E703DF42BA4AB1416A3B30B7E1D8E14AA0E558F7EE26800000000' THEN 'stefan-benten'"
-                "           ELSE '-UNKNOWN-'"
-                '       END satellite_name,'
-                '       CASE hex(satellite_id)'
-                "           WHEN 'A28B4F04E10BAE85D67F4C6CB82BF8D4C0F0F47A8EA72627524DEB6EC0000000' THEN 1"
-                "           WHEN 'AF2C42003EFC826AB4361F73F9D890942146FE0EBE806786F8E7190800000000' THEN 2"
-                "           WHEN '84A74C2CD43C5BA76535E1F42F5DF7C287ED68D33522782F4AFABFDB40000000' THEN 3"
-                "           WHEN '004AE89E970E703DF42BA4AB1416A3B30B7E1D8E14AA0E558F7EE26800000000' THEN 4"
-                "           ELSE 999"
-                '       END satellite_num '
-                'FROM ('
-                '   SELECT satellite_id, interval_start FROM bandwidth_usage_rollups'
-                '   UNION'
-                '   SELECT satellite_id, created_at interval_start FROM bandwidth_usage'
-                '   UNION'
-                '   SELECT satellite_id, interval_start FROM su.storage_usage)'
-                'WHERE ' + time_window )
+satellites = """
+    SELECT DISTINCT satellite_id,
+                       CASE hex(satellite_id)
+                           WHEN 'A28B4F04E10BAE85D67F4C6CB82BF8D4C0F0F47A8EA72627524DEB6EC0000000' THEN 'us-central-1'
+                           WHEN 'AF2C42003EFC826AB4361F73F9D890942146FE0EBE806786F8E7190800000000' THEN 'europe-west-1'
+                           WHEN '84A74C2CD43C5BA76535E1F42F5DF7C287ED68D33522782F4AFABFDB40000000' THEN 'asia-east-1'
+                           WHEN '004AE89E970E703DF42BA4AB1416A3B30B7E1D8E14AA0E558F7EE26800000000' THEN 'stefan-benten'
+                           ELSE '-UNKNOWN-'
+                       END satellite_name,
+                       CASE hex(satellite_id)
+                           WHEN 'A28B4F04E10BAE85D67F4C6CB82BF8D4C0F0F47A8EA72627524DEB6EC0000000' THEN 1
+                           WHEN 'AF2C42003EFC826AB4361F73F9D890942146FE0EBE806786F8E7190800000000' THEN 2
+                           WHEN '84A74C2CD43C5BA76535E1F42F5DF7C287ED68D33522782F4AFABFDB40000000' THEN 3
+                           WHEN '004AE89E970E703DF42BA4AB1416A3B30B7E1D8E14AA0E558F7EE26800000000' THEN 4
+                           ELSE 999
+                       END satellite_num
+                FROM (
+                   SELECT satellite_id, interval_start FROM bandwidth_usage_rollups
+                   UNION
+                   SELECT satellite_id, created_at interval_start FROM bandwidth_usage
+                   UNION
+                   SELECT satellite_id, interval_start FROM su.storage_usage)
+                WHERE {time_window}
+""".format(time_window=time_window)
 
-query = ('SELECT x.satellite_name satellite'
-    ' ,COALESCE(a.put_total,0) put_total'
-    ' ,COALESCE(a.get_total,0) get_total'
-    ' ,COALESCE(a.get_audit_total,0) get_audit_total'
-    ' ,COALESCE(a.get_repair_total,0) get_repair_total'
-    ' ,COALESCE(a.put_repair_total,0) put_repair_total'
-    ' ,COALESCE(c.bh_total,0) bh_total'
-    ' ,COALESCE(b.total,0) disk_total'
-    ' FROM ('
-     + satellites +
-    ' ) x'
-    ' LEFT JOIN '
-    ' psu.piece_space_used b'
-    ' ON x.satellite_id = b.satellite_id'
-    ' LEFT JOIN ('
-    '   SELECT'
-    '   satellite_id'
-    '   ,SUM(CASE WHEN action = 1 THEN amount ELSE 0 END) put_total'
-    '   ,SUM(CASE WHEN action = 2 THEN amount ELSE 0 END) get_total'
-    '   ,SUM(CASE WHEN action = 3 THEN amount ELSE 0 END) get_audit_total'
-    '   ,SUM(CASE WHEN action = 4 THEN amount ELSE 0 END) get_repair_total'
-    '   ,SUM(CASE WHEN action = 5 THEN amount ELSE 0 END) put_repair_total'
-    '   FROM (  SELECT satellite_id,action,amount,interval_start FROM bandwidth_usage_rollups'
-    '           UNION'
-    '           SELECT satellite_id,action,amount,created_at interval_start FROM bandwidth_usage) a'
-    '   WHERE ' + time_window +
-    '   GROUP BY satellite_id'
-    ' ) a'
-    ' ON x.satellite_id = a.satellite_id'
-    ' LEFT JOIN ('
-    '   SELECT'
-    '   satellite_id'
-    '   ,SUM(at_rest_total) bh_total'
-    '   FROM su.storage_usage'
-    '   WHERE ' + time_window +
-    '   GROUP BY satellite_id'
-    ' ) c'
-    ' ON x.satellite_id = c.satellite_id'
-    ' ORDER BY x.satellite_num;')
+query = """
+    SELECT x.satellite_name satellite
+    ,COALESCE(a.put_total,0) put_total
+    ,COALESCE(a.get_total,0) get_total
+    ,COALESCE(a.get_audit_total,0) get_audit_total
+    ,COALESCE(a.get_repair_total,0) get_repair_total
+    ,COALESCE(a.put_repair_total,0) put_repair_total
+    ,COALESCE(c.bh_total,0) bh_total
+    ,COALESCE(b.total,0) disk_total
+    FROM ({satellites}) x
+    LEFT JOIN 
+    psu.piece_space_used b
+    ON x.satellite_id = b.satellite_id
+    LEFT JOIN (
+      SELECT
+      satellite_id
+      ,SUM(CASE WHEN action = 1 THEN amount ELSE 0 END) put_total
+      ,SUM(CASE WHEN action = 2 THEN amount ELSE 0 END) get_total
+      ,SUM(CASE WHEN action = 3 THEN amount ELSE 0 END) get_audit_total
+      ,SUM(CASE WHEN action = 4 THEN amount ELSE 0 END) get_repair_total
+      ,SUM(CASE WHEN action = 5 THEN amount ELSE 0 END) put_repair_total
+      FROM (  SELECT satellite_id,action,amount,interval_start FROM bandwidth_usage_rollups
+              UNION
+              SELECT satellite_id,action,amount,created_at interval_start FROM bandwidth_usage) a
+      WHERE {time_window}
+      GROUP BY satellite_id
+    ) a
+    ON x.satellite_id = a.satellite_id
+    LEFT JOIN (
+      SELECT
+      satellite_id
+      ,SUM(at_rest_total) bh_total
+      FROM su.storage_usage
+      WHERE {time_window}
+      GROUP BY satellite_id
+    ) c
+    ON x.satellite_id = c.satellite_id
+    ORDER BY x.satellite_num;
+""".format(satellites=satellites, time_window=time_window)
 
 con = sqlite3.connect(dbPathBW)
 
