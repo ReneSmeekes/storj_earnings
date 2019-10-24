@@ -10,15 +10,15 @@ import sys
 import sqlite3
 
 if len(sys.argv) > 3:
-	sys.exit('ERROR: No more than two argument allowed. \nIf your path contains spaces use quotes. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
+    sys.exit('ERROR: No more than two argument allowed. \nIf your path contains spaces use quotes. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
 
 if len(sys.argv) < 2:
-	configPath = os.getcwd()
+    configPath = os.getcwd()
 else:
     configPath = sys.argv[1]
 
 if not os.path.exists(configPath):
-	sys.exit('ERROR: Path does not exist: "' + configPath + '"')
+    sys.exit('ERROR: Path does not exist: "' + configPath + '"')
 
 if os.path.isfile(os.path.join(configPath,"bandwidth.db")):
     dbPath = configPath
@@ -30,21 +30,21 @@ dbPathSU = os.path.join(dbPath,"storage_usage.db")
 dbPathPSU = os.path.join(dbPath,"piece_spaced_used.db")
 
 if not os.path.isfile(dbPathBW):
-	sys.exit('ERROR: bandwidth.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
+    sys.exit('ERROR: bandwidth.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
 
 if not os.path.isfile(dbPathSU):
-	sys.exit('ERROR: storage_usage.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
+    sys.exit('ERROR: storage_usage.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
 
 if not os.path.isfile(dbPathPSU):
-	sys.exit('ERROR: piece_spaced_used.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
+    sys.exit('ERROR: piece_spaced_used.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
 
 if len(sys.argv) == 3:
-	try:
-		mdate = datetime.strptime(sys.argv[2], '%Y-%m')
-	except:
-		sys.exit('ERROR: Invalid month argument. \nUse YYYY-MM as format. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '" "' + datetime.now().strftime('%Y-%m') + '"')
+    try:
+        mdate = datetime.strptime(sys.argv[2], '%Y-%m')
+    except:
+        sys.exit('ERROR: Invalid month argument. \nUse YYYY-MM as format. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '" "' + datetime.now().strftime('%Y-%m') + '"')
 else:
-	mdate = datetime.utcnow()
+    mdate = datetime.utcnow()
 
 def formatSize(size):
     "Formats size to be displayed in the most fitting unit"
@@ -224,12 +224,12 @@ print("Download\t\tEgress\t\t\t{}\t{:10.2f} USD".format(formatSize(get_total), u
 print("Download Repair\t\tEgress\t\t\t{}\t{:10.2f} USD".format(formatSize(get_repair_total), usd_get_repair_total))
 print("Download Audit\t\tEgress\t\t\t{}\t{:10.2f} USD".format(formatSize(get_audit_total), usd_get_audit_total))
 if year_month < 201909:
-        print("\n\t   ** Storage usage not available prior to September 2019 **")
-        print("_______________________________________________________________________________+")
-        print("Total\t\t\t\t\t\t{}\t{:10.2f} USD".format(formatSize(sum_total), usd_sum_total))
+    print("\n\t   ** Storage usage not available prior to September 2019 **")
+    print("_______________________________________________________________________________+")
+    print("Total\t\t\t\t\t\t{}\t{:10.2f} USD".format(formatSize(sum_total), usd_sum_total))
 else:
     if len(sys.argv) < 3:
-    	print("Disk Current\t\tStorage\t{}\t\t\t    -not paid-".format(formatSize(disk_total)))
+        print("Disk Current\t\tStorage\t{}\t\t\t    -not paid-".format(formatSize(disk_total)))
     print("Disk Average Month\tStorage\t{}m\t\t\t{:10.2f} USD".format(formatSize(bh_total / hours_month), usd_bh_total))
     print("Disk Usage\t\tStorage\t{}h\t\t\t    -not paid-".format(formatSize(bh_total)))
     print("_______________________________________________________________________________+")
