@@ -41,7 +41,7 @@ if not os.path.isfile(dbPathPSU):
 if len(sys.argv) == 3:
     try:
         mdate = datetime.strptime(sys.argv[2], '%Y-%m')
-    except:
+    except ValueError:
         sys.exit('ERROR: Invalid month argument. \nUse YYYY-MM as format. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '" "' + datetime.now().strftime('%Y-%m') + '"')
 else:
     mdate = datetime.utcnow()
