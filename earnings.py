@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
-version = "8.0.0"
+version = "8.0.1"
 
 from calendar import monthrange
 from datetime import datetime
 
-import math
 import os
 import sys
 import sqlite3
@@ -54,7 +53,7 @@ else:
 
 def formatSize(size):
     "Formats size to be displayed in the most fitting unit"
-    power = math.floor((len(str(abs(int(size))))-1)/3)
+    power = (len(str(abs(int(size))))-1)//3
     units = {
             0: " B",
             1: "KB",
@@ -232,7 +231,7 @@ for data in con.execute(query):
     usd_sum.append(usd_get[-1] + usd_get_audit[-1] + usd_get_repair[-1] + usd_bh[-1])
     
     if data[8] == 'Vetting:':
-        rep_status.append(data[8] + str(math.floor((100*float(data[9]))/float(audit_req))) + '%')
+        rep_status.append(data[8] + '{:d}%'.format((100*int(data[9]))//int(audit_req)) )
     else:
         rep_status.append(data[8])
     uptime_score.append(int(data[10]))
