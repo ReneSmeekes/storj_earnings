@@ -12,44 +12,45 @@ import sqlite3
 audit_req = '100'
 
 if len(sys.argv) > 3:
-	sys.exit('ERROR: No more than two argument allowed. \nIf your path contains spaces use quotes. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
+    sys.exit('ERROR: No more than two argument allowed. \nIf your path contains spaces use quotes. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
 
 if len(sys.argv) < 2:
-	configPath = os.getcwd()
+    configPath = os.getcwd()
 else:
     configPath = sys.argv[1]
 
-if os.path.exists(configPath) == False:
-	sys.exit('ERROR: Path does not exist: "' + configPath + '"')
+if not os.path.exists(configPath):
+    sys.exit('ERROR: Path does not exist: "' + configPath + '"')
 
-if os.path.isfile(os.path.join(configPath,"bandwidth.db")) == True:
+if os.path.isfile(os.path.join(configPath,"bandwidth.db")):
     dbPath = configPath
 else:
     dbPath = os.path.join(configPath,"storage")
 
 dbPathBW = os.path.join(dbPath,"bandwidth.db")
-if os.path.isfile(dbPathBW) == False:
-	sys.exit('ERROR: bandwidth.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
-
 dbPathSU = os.path.join(dbPath,"storage_usage.db")
-if os.path.isfile(dbPathSU) == False:
-	sys.exit('ERROR: storage_usage.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
-
 dbPathPSU = os.path.join(dbPath,"piece_spaced_used.db")
-if os.path.isfile(dbPathPSU) == False:
-	sys.exit('ERROR: piece_spaced_used.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
+
+if not os.path.isfile(dbPathBW):
+    sys.exit('ERROR: bandwidth.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
+
+if not os.path.isfile(dbPathSU):
+    sys.exit('ERROR: storage_usage.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
+
+if not os.path.isfile(dbPathPSU):
+    sys.exit('ERROR: piece_spaced_used.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
 
 dbPathR = os.path.join(dbPath,"reputation.db")
-if os.path.isfile(dbPathR) == False:
+if not os.path.isfile(dbPathR):
 	sys.exit('ERROR: reputation.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
 
 if len(sys.argv) == 3:
-	try:
-		mdate = datetime.strptime(sys.argv[2], '%Y-%m')
-	except:
-		sys.exit('ERROR: Invalid month argument. \nUse YYYY-MM as format. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '" "' + datetime.now().strftime('%Y-%m') + '"')
+    try:
+        mdate = datetime.strptime(sys.argv[2], '%Y-%m')
+    except ValueError:
+        sys.exit('ERROR: Invalid month argument. \nUse YYYY-MM as format. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '" "' + datetime.now().strftime('%Y-%m') + '"')
 else:
-	mdate = datetime.utcnow()
+    mdate = datetime.utcnow()
 
 def formatSize(size):
     "Formats size to be displayed in the most fitting unit"
@@ -75,84 +76,86 @@ year_month = (mdate.year * 100) + mdate.month
 
 time_window = "interval_start >= '" + date_from.strftime("%Y-%m-%d") + "' AND interval_start < '" + date_to.strftime("%Y-%m-%d") + "'"
 
-satellites = (  'SELECT DISTINCT satellite_id,'
-                '       CASE hex(satellite_id)'
-                "           WHEN 'A28B4F04E10BAE85D67F4C6CB82BF8D4C0F0F47A8EA72627524DEB6EC0000000' THEN 'us-central-1'"
-                "           WHEN 'AF2C42003EFC826AB4361F73F9D890942146FE0EBE806786F8E7190800000000' THEN 'europe-west-1'"
-                "           WHEN '84A74C2CD43C5BA76535E1F42F5DF7C287ED68D33522782F4AFABFDB40000000' THEN 'asia-east-1'"
-                "           WHEN '004AE89E970E703DF42BA4AB1416A3B30B7E1D8E14AA0E558F7EE26800000000' THEN 'stefan-benten'"
-                "           ELSE '-UNKNOWN-'"
-                '       END satellite_name,'
-                '       CASE hex(satellite_id)'
-                "           WHEN 'A28B4F04E10BAE85D67F4C6CB82BF8D4C0F0F47A8EA72627524DEB6EC0000000' THEN 1"
-                "           WHEN 'AF2C42003EFC826AB4361F73F9D890942146FE0EBE806786F8E7190800000000' THEN 2"
-                "           WHEN '84A74C2CD43C5BA76535E1F42F5DF7C287ED68D33522782F4AFABFDB40000000' THEN 3"
-                "           WHEN '004AE89E970E703DF42BA4AB1416A3B30B7E1D8E14AA0E558F7EE26800000000' THEN 4"
-                "           ELSE 999"
-                '       END satellite_num '
-                'FROM ('
-                '   SELECT satellite_id, interval_start FROM bandwidth_usage_rollups'
-                '   UNION'
-                '   SELECT satellite_id, created_at interval_start FROM bandwidth_usage'
-                '   UNION'
-                '   SELECT satellite_id, interval_start FROM su.storage_usage)'
-                'WHERE ' + time_window )
+satellites = """
+    SELECT DISTINCT satellite_id,
+                       CASE hex(satellite_id)
+                           WHEN 'A28B4F04E10BAE85D67F4C6CB82BF8D4C0F0F47A8EA72627524DEB6EC0000000' THEN 'us-central-1'
+                           WHEN 'AF2C42003EFC826AB4361F73F9D890942146FE0EBE806786F8E7190800000000' THEN 'europe-west-1'
+                           WHEN '84A74C2CD43C5BA76535E1F42F5DF7C287ED68D33522782F4AFABFDB40000000' THEN 'asia-east-1'
+                           WHEN '004AE89E970E703DF42BA4AB1416A3B30B7E1D8E14AA0E558F7EE26800000000' THEN 'stefan-benten'
+                           ELSE '-UNKNOWN-'
+                       END satellite_name,
+                       CASE hex(satellite_id)
+                           WHEN 'A28B4F04E10BAE85D67F4C6CB82BF8D4C0F0F47A8EA72627524DEB6EC0000000' THEN 1
+                           WHEN 'AF2C42003EFC826AB4361F73F9D890942146FE0EBE806786F8E7190800000000' THEN 2
+                           WHEN '84A74C2CD43C5BA76535E1F42F5DF7C287ED68D33522782F4AFABFDB40000000' THEN 3
+                           WHEN '004AE89E970E703DF42BA4AB1416A3B30B7E1D8E14AA0E558F7EE26800000000' THEN 4
+                           ELSE 999
+                       END satellite_num
+                FROM (
+                   SELECT satellite_id, interval_start FROM bandwidth_usage_rollups
+                   UNION
+                   SELECT satellite_id, created_at interval_start FROM bandwidth_usage
+                   UNION
+                   SELECT satellite_id, interval_start FROM su.storage_usage)
+                WHERE {time_window}
+""".format(time_window=time_window)
 
-query = ('SELECT x.satellite_name satellite'
-    ' ,COALESCE(a.put_total,0) put_total'
-    ' ,COALESCE(a.get_total,0) get_total'
-    ' ,COALESCE(a.get_audit_total,0) get_audit_total'
-    ' ,COALESCE(a.get_repair_total,0) get_repair_total'
-    ' ,COALESCE(a.put_repair_total,0) put_repair_total'
-    ' ,COALESCE(c.bh_total,0) bh_total'
-    ' ,COALESCE(b.total,0) disk_total'
-    " ,COALESCE(d.rep_status,'') rep_status"
-    ' ,COALESCE(d.vet_count,0) vet_count'
-    ' ,COALESCE(d.uptime_score,0) uptime_score'
-    ' ,COALESCE(d.audit_score,0) audit_score'
-    ' FROM ('
-     + satellites +
-    ' ) x'
-    ' LEFT JOIN '
-    ' psu.piece_space_used b'
-    ' ON x.satellite_id = b.satellite_id'
-    ' LEFT JOIN ('
-    '   SELECT'
-    '   satellite_id'
-    '   ,SUM(CASE WHEN action = 1 THEN amount ELSE 0 END) put_total'
-    '   ,SUM(CASE WHEN action = 2 THEN amount ELSE 0 END) get_total'
-    '   ,SUM(CASE WHEN action = 3 THEN amount ELSE 0 END) get_audit_total'
-    '   ,SUM(CASE WHEN action = 4 THEN amount ELSE 0 END) get_repair_total'
-    '   ,SUM(CASE WHEN action = 5 THEN amount ELSE 0 END) put_repair_total'
-    '   FROM (  SELECT satellite_id,action,amount,interval_start FROM bandwidth_usage_rollups'
-    '           UNION'
-    '           SELECT satellite_id,action,amount,created_at interval_start FROM bandwidth_usage) a'
-    '   WHERE ' + time_window +
-    '   GROUP BY satellite_id'
-    ' ) a'
-    ' ON x.satellite_id = a.satellite_id'
-    ' LEFT JOIN ('
-    '   SELECT'
-    '   satellite_id'
-    '   ,SUM(at_rest_total) bh_total'
-    '   FROM su.storage_usage'
-    '   WHERE ' + time_window +
-    '   GROUP BY satellite_id'
-    ' ) c'
-    ' ON x.satellite_id = c.satellite_id'
-    ' LEFT JOIN ('
-    '   SELECT'
-    '   satellite_id'
-    "   ,CASE WHEN disqualified IS NOT NULL THEN 'Status:DQ'"
-    "         WHEN audit_success_count < " + audit_req + " THEN 'Vetting:'"
-    "         ELSE 'Status:OK' END AS rep_status"
-    '   ,MIN(audit_success_count,' + audit_req + ') AS vet_count'
-    '   ,CAST(uptime_reputation_score * 1000 as INT) AS uptime_score'
-    '   ,CAST(audit_reputation_score * 1000 as INT) AS audit_score'
-    '   FROM r.reputation'
-    ' ) d'
-    ' ON x.satellite_id = d.satellite_id'
-    ' ORDER BY x.satellite_num;')
+query = """
+    SELECT x.satellite_name satellite
+    ,COALESCE(a.put_total,0) put_total
+    ,COALESCE(a.get_total,0) get_total
+    ,COALESCE(a.get_audit_total,0) get_audit_total
+    ,COALESCE(a.get_repair_total,0) get_repair_total
+    ,COALESCE(a.put_repair_total,0) put_repair_total
+    ,COALESCE(c.bh_total,0) bh_total
+    ,COALESCE(b.total,0) disk_total
+    ,COALESCE(d.rep_status,'') rep_status
+    ,COALESCE(d.vet_count,0) vet_count
+    ,COALESCE(d.uptime_score,0) uptime_score
+    ,COALESCE(d.audit_score,0) audit_score
+    FROM ({satellites}) x
+    LEFT JOIN 
+    psu.piece_space_used b
+    ON x.satellite_id = b.satellite_id
+    LEFT JOIN (
+      SELECT
+      satellite_id
+      ,SUM(CASE WHEN action = 1 THEN amount ELSE 0 END) put_total
+      ,SUM(CASE WHEN action = 2 THEN amount ELSE 0 END) get_total
+      ,SUM(CASE WHEN action = 3 THEN amount ELSE 0 END) get_audit_total
+      ,SUM(CASE WHEN action = 4 THEN amount ELSE 0 END) get_repair_total
+      ,SUM(CASE WHEN action = 5 THEN amount ELSE 0 END) put_repair_total
+      FROM (  SELECT satellite_id,action,amount,interval_start FROM bandwidth_usage_rollups
+              UNION
+              SELECT satellite_id,action,amount,created_at interval_start FROM bandwidth_usage) a
+      WHERE {time_window}
+      GROUP BY satellite_id
+    ) a
+    ON x.satellite_id = a.satellite_id
+    LEFT JOIN (
+      SELECT
+      satellite_id
+      ,SUM(at_rest_total) bh_total
+      FROM su.storage_usage
+      WHERE {time_window}
+      GROUP BY satellite_id
+    ) c
+    ON x.satellite_id = c.satellite_id
+    LEFT JOIN (
+      SELECT
+      satellite_id
+      ,CASE WHEN disqualified IS NOT NULL THEN 'Status:DQ'
+            WHEN audit_success_count < {audit_req} THEN 'Vetting:'
+            ELSE 'Status:OK' END AS rep_status
+      ,MIN(audit_success_count, {audit_req}) AS vet_count
+      ,CAST(uptime_reputation_score * 1000 as INT) AS uptime_score
+      ,CAST(audit_reputation_score * 1000 as INT) AS audit_score
+      FROM r.reputation
+    ) d
+    ON x.satellite_id = d.satellite_id
+    ORDER BY x.satellite_num;
+""".format(satellites=satellites, time_window=time_window, audit_req=audit_req)
 
 con = sqlite3.connect(dbPathBW)
 
@@ -258,12 +261,12 @@ print("Download\t\tEgress\t\t\t{}\t{:10.2f} USD".format(formatSize(get_total), u
 print("Download Repair\t\tEgress\t\t\t{}\t{:10.2f} USD".format(formatSize(get_repair_total), usd_get_repair_total))
 print("Download Audit\t\tEgress\t\t\t{}\t{:10.2f} USD".format(formatSize(get_audit_total), usd_get_audit_total))
 if year_month < 201909:
-        print("\n\t   ** Storage usage not available prior to September 2019 **")
-        print("_______________________________________________________________________________+")
-        print("Total\t\t\t\t\t\t{}\t{:10.2f} USD".format(formatSize(sum_total), usd_sum_total))
+    print("\n\t   ** Storage usage not available prior to September 2019 **")
+    print("_______________________________________________________________________________+")
+    print("Total\t\t\t\t\t\t{}\t{:10.2f} USD".format(formatSize(sum_total), usd_sum_total))
 else:
     if len(sys.argv) < 3:
-    	print("Disk Current\t\tStorage\t{}\t\t\t    -not paid-".format(formatSize(disk_total)))
+        print("Disk Current\t\tStorage\t{}\t\t\t    -not paid-".format(formatSize(disk_total)))
     print("Disk Average Month\tStorage\t{}m\t\t\t{:10.2f} USD".format(formatSize(bh_total / hours_month), usd_bh_total))
     print("Disk Usage\t\tStorage\t{}h\t\t\t    -not paid-".format(formatSize(bh_total)))
     print("_______________________________________________________________________________+")
