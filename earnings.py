@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-version = "7.0.1"
+version = "8.0.0"
 
 from calendar import monthrange
 from datetime import datetime
@@ -8,6 +8,8 @@ import math
 import os
 import sys
 import sqlite3
+
+audit_req = '100'
 
 if len(sys.argv) > 3:
     sys.exit('ERROR: No more than two argument allowed. \nIf your path contains spaces use quotes. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
@@ -37,6 +39,10 @@ if not os.path.isfile(dbPathSU):
 
 if not os.path.isfile(dbPathPSU):
     sys.exit('ERROR: piece_spaced_used.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
+
+dbPathR = os.path.join(dbPath,"reputation.db")
+if not os.path.isfile(dbPathR):
+	sys.exit('ERROR: reputation.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
 
 if len(sys.argv) == 3:
     try:
@@ -104,6 +110,10 @@ query = """
     ,COALESCE(a.put_repair_total,0) put_repair_total
     ,COALESCE(c.bh_total,0) bh_total
     ,COALESCE(b.total,0) disk_total
+    ,COALESCE(d.rep_status,'') rep_status
+    ,COALESCE(d.vet_count,0) vet_count
+    ,COALESCE(d.uptime_score,0) uptime_score
+    ,COALESCE(d.audit_score,0) audit_score
     FROM ({satellites}) x
     LEFT JOIN 
     psu.piece_space_used b
@@ -132,15 +142,31 @@ query = """
       GROUP BY satellite_id
     ) c
     ON x.satellite_id = c.satellite_id
+    LEFT JOIN (
+      SELECT
+      satellite_id
+      ,CASE WHEN disqualified IS NOT NULL THEN 'Status:DQ'
+            WHEN audit_success_count < {audit_req} THEN 'Vetting:'
+            ELSE 'Status:OK' END AS rep_status
+      ,MIN(audit_success_count, {audit_req}) AS vet_count
+      ,CAST(uptime_reputation_score * 1000 as INT) AS uptime_score
+      ,CAST(audit_reputation_score * 1000 as INT) AS audit_score
+      FROM r.reputation
+    ) d
+    ON x.satellite_id = d.satellite_id
     ORDER BY x.satellite_num;
-""".format(satellites=satellites, time_window=time_window)
+""".format(satellites=satellites, time_window=time_window, audit_req=audit_req)
 
 con = sqlite3.connect(dbPathBW)
 
 tSU = (dbPathSU,)
-tPSU = (dbPathPSU,)
 con.execute('ATTACH DATABASE ? AS su;',tSU)
+
+tPSU = (dbPathPSU,)
 con.execute('ATTACH DATABASE ? AS psu;',tPSU)
+
+tR = (dbPathR,)
+con.execute('ATTACH DATABASE ? AS r;',tR)
 
 put_total = 0
 get_total = 0
@@ -166,10 +192,15 @@ usd_get_repair = list()
 usd_bh = list()
 usd_sum = list()
 
+rep_status = list()
+vet_count = list()
+uptime_score = list()
+audit_score = list()
+
 hours_month = monthrange(mdate.year, mdate.month)[1] * 24
 
 for data in con.execute(query):
-    if len(data) < 7:
+    if len(data) < 12:
         sys.exit('ERROR SQLite3: ' + data)
     put_total = put_total + int(data[1])
     get_total = get_total + int(data[2])
@@ -187,21 +218,25 @@ for data in con.execute(query):
     get_audit.append(int(data[3]))
     get_repair.append(int(data[4]))
     put_repair.append(int(data[5]))
+    if len(sys.argv) != 3:   
+        disk.append(int(data[6]))
+    else:
+        disk.append(0)
     bh.append(int(data[6]))
+    sums.append(put[-1] + get[-1] + get_audit[-1] + get_repair[-1] + put_repair[-1])
     
     usd_get.append((20 / (1000.00**4)) * get[-1])
     usd_get_audit.append((10 / (1000.00**4)) * get_audit[-1])
     usd_get_repair.append((10 / (1000.00**4)) * get_repair[-1])
     usd_bh.append((1.5 / (1000.00**4)) * (bh[-1] / hours_month))
-
-    if len(sys.argv) != 3:   
-        disk.append(int(data[6]))
-    else:
-        disk.append(0)
-
-    sums.append(put[-1] + get[-1] + get_audit[-1] + get_repair[-1] + put_repair[-1])
-    
     usd_sum.append(usd_get[-1] + usd_get_audit[-1] + usd_get_repair[-1] + usd_bh[-1])
+    
+    if data[8] == 'Vetting:':
+        rep_status.append(data[8] + str(math.floor((100*float(data[9]))/float(audit_req))) + '%')
+    else:
+        rep_status.append(data[8])
+    uptime_score.append(int(data[10]))
+    audit_score.append(int(data[11]))
 
 sum_total = put_total + get_total + get_audit_total + get_repair_total + put_repair_total
 
@@ -238,7 +273,10 @@ else:
     print("Total\t\t\t\t{}m\t{}\t{:10.2f} USD".format(formatSize(bh_total  / hours_month), formatSize(sum_total), usd_sum_total))
 
 print("\033[4m\nPayout and escrow by satellite:\033[0m")
-print("SATELLITE\tTYPE\t  MONTH 1-3\t  MONTH 4-6\t  MONTH 7-9\t  MONTH 10+")
+print("SATELLITE\t\tTYPE\t  MONTH 1-3\t  MONTH 4-6\t  MONTH 7-9\t  MONTH 10+")
 for i in range(len(usd_sum)):
-    print("{}\tPayout\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD".format(sat_name[i],usd_sum[i]*.25,usd_sum[i]*.5,usd_sum[i]*.75,usd_sum[i]))
-    print("\t\tEscrow\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\n".format(usd_sum[i]*.75,usd_sum[i]*.5,usd_sum[i]*.25,0))
+    print("{}\t\tPayout\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD".format(sat_name[i],usd_sum[i]*.25,usd_sum[i]*.5,usd_sum[i]*.75,usd_sum[i]))
+    if len(sys.argv) < 3:
+        print("{} U{}/A{}\tEscrow\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\n".format(rep_status[i],uptime_score[i],audit_score[i],usd_sum[i]*.75,usd_sum[i]*.5,usd_sum[i]*.25,0))    	
+    else:
+        print("\t\t\tEscrow\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\n".format(usd_sum[i]*.75,usd_sum[i]*.5,usd_sum[i]*.25,0))
