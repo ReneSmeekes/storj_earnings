@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-version = "8.0.1"
+version = "8.1.0"
 
 from calendar import monthrange
 from datetime import datetime
@@ -113,6 +113,7 @@ query = """
     ,COALESCE(d.vet_count,0) vet_count
     ,COALESCE(d.uptime_score,0) uptime_score
     ,COALESCE(d.audit_score,0) audit_score
+    ,COALESCE(sat_start_dt, '') sat_start_dt
     FROM ({satellites}) x
     LEFT JOIN 
     psu.piece_space_used b
@@ -153,6 +154,15 @@ query = """
       FROM r.reputation
     ) d
     ON x.satellite_id = d.satellite_id
+    LEFT JOIN (
+      SELECT
+      satellite_id
+      ,strftime('%Y-%m-%d',MIN(interval_start))||
+      CASE WHEN MIN(interval_start) < '2019-05-01' THEN '*' ELSE '' END AS sat_start_dt
+      FROM bandwidth_usage_rollups
+      GROUP BY satellite_id
+    ) e
+    ON x.satellite_id = e.satellite_id
     ORDER BY x.satellite_num;
 """.format(satellites=satellites, time_window=time_window, audit_req=audit_req)
 
@@ -196,6 +206,8 @@ vet_count = list()
 uptime_score = list()
 audit_score = list()
 
+sat_start_dt = list()
+
 hours_month = monthrange(mdate.year, mdate.month)[1] * 24
 
 for data in con.execute(query):
@@ -236,6 +248,8 @@ for data in con.execute(query):
         rep_status.append(data[8])
     uptime_score.append(int(data[10]))
     audit_score.append(int(data[11]))
+    
+    sat_start_dt.append(data[12])
 
 sum_total = put_total + get_total + get_audit_total + get_repair_total + put_repair_total
 
@@ -272,10 +286,12 @@ else:
     print("Total\t\t\t\t{}m\t{}\t{:10.2f} USD".format(formatSize(bh_total  / hours_month), formatSize(sum_total), usd_sum_total))
 
 print("\033[4m\nPayout and escrow by satellite:\033[0m")
-print("SATELLITE\t\tTYPE\t  MONTH 1-3\t  MONTH 4-6\t  MONTH 7-9\t  MONTH 10+")
+print("SATELLITE\tFIRST CONTACT\tTYPE\t  MONTH 1-3\t  MONTH 4-6\t  MONTH 7-9\t  MONTH 10+")
 for i in range(len(usd_sum)):
-    print("{}\t\tPayout\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD".format(sat_name[i],usd_sum[i]*.25,usd_sum[i]*.5,usd_sum[i]*.75,usd_sum[i]))
+    print("{}\t{}\tPayout\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD".format(sat_name[i],sat_start_dt[i],usd_sum[i]*.25,usd_sum[i]*.5,usd_sum[i]*.75,usd_sum[i]))
     if len(sys.argv) < 3:
-        print("{} U{}/A{}\tEscrow\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\n".format(rep_status[i],uptime_score[i],audit_score[i],usd_sum[i]*.75,usd_sum[i]*.5,usd_sum[i]*.25,0))    	
+        print("{} (Up.{}/Aud.{})\tEscrow\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\n".format(rep_status[i],uptime_score[i],audit_score[i],usd_sum[i]*.75,usd_sum[i]*.5,usd_sum[i]*.25,0))
     else:
-        print("\t\t\tEscrow\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\n".format(usd_sum[i]*.75,usd_sum[i]*.5,usd_sum[i]*.25,0))
+        print("\t\t\t\tEscrow\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\n".format(usd_sum[i]*.75,usd_sum[i]*.5,usd_sum[i]*.25,0))
+if any('*' in sdat for sdat in sat_start_dt):
+    print("* First contact may be earlier, nodes didn't keep contact data before April 2019")
