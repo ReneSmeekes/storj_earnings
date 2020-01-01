@@ -22,3 +22,8 @@ Earnings for previous months:
 ```
 python earnings.py /path/to/storj/data 2019-05
 ```
+
+JSON output:
+```
+python earnings.py -j /path/to/storj/data [<month>]
+```

@@ -6,17 +6,35 @@ from datetime import datetime
 
 import os
 import sys
+import json
 import sqlite3
+import argparse
 
 audit_req = '100'
 
-if len(sys.argv) > 3:
-    sys.exit('ERROR: No more than two argument allowed. \nIf your path contains spaces use quotes. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
+parser = argparse.ArgumentParser()
 
-if len(sys.argv) < 2:
-    configPath = os.getcwd()
-else:
-    configPath = sys.argv[1]
+currentDir = os.getcwd()
+currentMonth = datetime.now().strftime("%Y-%m")
+
+parser.add_argument("-j", "--json",
+                        action="store_true",
+                        help="json output for easy parsing")
+parser.add_argument("configPath",
+                        type=str,
+                        default=currentDir,
+                        nargs="?",
+                        help="path to storj data (defaults to current dir)")
+parser.add_argument("month",
+                        type=str,
+                        default=currentMonth,
+                        nargs="?",
+                        help="earnings month (defaults to current month, format: YYYY-MM)")
+
+args = parser.parse_args()
+jsonOutput = args.json
+configPath = args.configPath
+month = args.month
 
 if not os.path.exists(configPath):
     sys.exit('ERROR: Path does not exist: "' + configPath + '"')
@@ -43,13 +61,12 @@ dbPathR = os.path.join(dbPath,"reputation.db")
 if not os.path.isfile(dbPathR):
 	sys.exit('ERROR: reputation.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
 
-if len(sys.argv) == 3:
-    try:
-        mdate = datetime.strptime(sys.argv[2], '%Y-%m')
-    except ValueError:
-        sys.exit('ERROR: Invalid month argument. \nUse YYYY-MM as format. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '" "' + datetime.now().strftime('%Y-%m') + '"')
-else:
-    mdate = datetime.utcnow()
+
+try:
+    mdate = datetime.strptime(month, '%Y-%m')
+except ValueError:
+    sys.exit('ERROR: Invalid month argument. \nUse YYYY-MM as format.')
+
 
 def formatSize(size):
     "Formats size to be displayed in the most fitting unit"
@@ -260,38 +277,138 @@ usd_bh_total = (1.5 / (1000.00**4)) * (bh_total / hours_month)
 
 usd_sum_total = usd_get_total + usd_get_audit_total + usd_get_repair_total + usd_bh_total
 
-
-if len(sys.argv) == 3:
-    print("\033[4m\n{} (Version: {})\033[0m".format(mdate.strftime('%B %Y'), version))    
-else:
-    print("\033[4m\n{} (Version: {})\t\t\t[snapshot: {}]\033[0m".format(mdate.strftime('%B %Y'), version, mdate.strftime('%Y-%m-%d %H:%M:%SZ')))
-
-
-print("\t\t\tTYPE\t\tDISK\t   BANDWIDTH\t\tPAYOUT")
-print("Upload\t\t\tIngress\t\t\t{}\t    -not paid-".format(formatSize(put_total)))
-print("Upload Repair\t\tIngress\t\t\t{}\t    -not paid-".format(formatSize(put_repair_total)))
-print("Download\t\tEgress\t\t\t{}\t{:10.2f} USD".format(formatSize(get_total), usd_get_total))
-print("Download Repair\t\tEgress\t\t\t{}\t{:10.2f} USD".format(formatSize(get_repair_total), usd_get_repair_total))
-print("Download Audit\t\tEgress\t\t\t{}\t{:10.2f} USD".format(formatSize(get_audit_total), usd_get_audit_total))
-if year_month < 201909:
-    print("\n\t   ** Storage usage not available prior to September 2019 **")
-    print("_______________________________________________________________________________+")
-    print("Total\t\t\t\t\t\t{}\t{:10.2f} USD".format(formatSize(sum_total), usd_sum_total))
-else:
-    if len(sys.argv) < 3:
-        print("Disk Current\t\tStorage\t{}\t\t\t    -not paid-".format(formatSize(disk_total)))
-    print("Disk Average Month\tStorage\t{}m\t\t\t{:10.2f} USD".format(formatSize(bh_total / hours_month), usd_bh_total))
-    print("Disk Usage\t\tStorage\t{}h\t\t\t    -not paid-".format(formatSize(bh_total)))
-    print("_______________________________________________________________________________+")
-    print("Total\t\t\t\t{}m\t{}\t{:10.2f} USD".format(formatSize(bh_total  / hours_month), formatSize(sum_total), usd_sum_total))
-
-print("\033[4m\nPayout and escrow by satellite:\033[0m")
-print("SATELLITE\tFIRST CONTACT\tTYPE\t  MONTH 1-3\t  MONTH 4-6\t  MONTH 7-9\t  MONTH 10+")
-for i in range(len(usd_sum)):
-    print("{}\t{}\tPayout\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD".format(sat_name[i],sat_start_dt[i],usd_sum[i]*.25,usd_sum[i]*.5,usd_sum[i]*.75,usd_sum[i]))
-    if len(sys.argv) < 3:
-        print("{} (Up.{}/Aud.{})\tEscrow\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\n".format(rep_status[i],uptime_score[i],audit_score[i],usd_sum[i]*.75,usd_sum[i]*.5,usd_sum[i]*.25,0))
+if jsonOutput:
+    stats = {
+        "period": mdate.strftime('%B %Y'),
+        "version": version,
+        "stats": {
+            "upload": {
+                "type": "ingress",
+                "bandwidth": put_total
+            },
+            "upload_repair": {
+                "type": "ingress",
+                "bandwidth": put_repair_total
+            },
+            "download": {
+                "type": "egress",
+                "bandwidth": get_total,
+                "payout": round(usd_get_total, 4)
+            },
+            "download_repair": {
+                "type": "egress",
+                "bandwidth": get_repair_total,
+                "payout": round(usd_get_repair_total, 4)
+            },
+            "download_audit": {
+                "type": "egress",
+                "bandwidth": get_audit_total,
+                "payout": round(usd_get_audit_total, 4)
+            }
+        }
+    }
+    if month == currentMonth:
+        stats.update({
+            "snapshot": mdate.strftime('%Y-%m-%d %H:%M:%SZ')
+        })
+    if year_month < 201909:
+        stats["stats"].update({
+            "total": {
+                "bandwidth": sum_total,
+                "payout": round(usd_sum_total, 4)
+            }
+        })
     else:
-        print("\t\t\t\tEscrow\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\n".format(usd_sum[i]*.75,usd_sum[i]*.5,usd_sum[i]*.25,0))
-if any('*' in sdat for sdat in sat_start_dt):
-    print("* First contact may be earlier, nodes didn't keep contact data before April 2019")
+        if month == currentMonth:
+            stats["stats"].update({
+                "disk_current": {
+                    "type": "storage",
+                    "disk": disk_total,
+                }
+            })
+        stats["stats"].update({
+            "disk_average_month": {
+                "type": "storage",
+                "disk": round(float(bh_total) / float(hours_month)),
+                "payout": round(usd_bh_total, 4)
+            },
+            "disk_usage": {
+                "type": "storage",
+                "disk": bh_total
+            },
+            "total": {
+                "disk": round(float(bh_total) / float(hours_month)),
+                "bandwidth": sum_total,
+                "payout": round(usd_sum_total, 4)
+            }
+        })
+    stats["satellites"] = {}
+    for i in range(len(usd_sum)):
+        stats["satellites"].update({
+            sat_name[i]: {
+                "first_contact": sat_start_dt[i],
+                "payout": {
+                    "month_1-3": round(usd_sum[i]*.25, 4),
+                    "month_4-6": round(usd_sum[i]*.5),
+                    "month_7-9": round(usd_sum[i]*.75, 4),
+                    "month_10+": round(usd_sum[i], 4)
+                },
+                "escrow": {}
+            }
+        })
+        if month == currentMonth:
+            stats["satellites"][sat_name[i]].update({
+                "status": rep_status[i].split(":")[1],
+                "score": {
+                    "uptime": uptime_score[i],
+                    "audit": audit_score[i]
+                }
+            })
+            stats["satellites"][sat_name[i]]["escrow"].update({
+                "month_1-3": round(usd_sum[i]*.75, 4),
+                "month_4-6": round(usd_sum[i]*.5, 4),
+                "month_7-9": round(usd_sum[i]*.25, 4),
+                "month_10+": 0
+            })
+        else:
+            stats["satellites"][sat_name[i]]["escrow"].update({
+                "month_1-3": round(usd_sum[i]*.75, 4),
+                "month_4-6": round(usd_sum[i]*.5, 4),
+                "month_7-9": round(usd_sum[i]*.25, 4),
+                "month_10+": 0
+            })
+    print(json.dumps(stats, indent=4))
+else:
+    if month != currentMonth:
+        print("\033[4m\n{} (Version: {})\033[0m".format(mdate.strftime('%B %Y'), version))
+    else:
+        print("\033[4m\n{} (Version: {})\t\t\t[snapshot: {}]\033[0m".format(mdate.strftime('%B %Y'), version, mdate.strftime('%Y-%m-%d %H:%M:%SZ')))
+
+    print("\t\t\tTYPE\t\tDISK\t   BANDWIDTH\t\tPAYOUT")
+    print("Upload\t\t\tIngress\t\t\t{}\t    -not paid-".format(formatSize(put_total)))
+    print("Upload Repair\t\tIngress\t\t\t{}\t    -not paid-".format(formatSize(put_repair_total)))
+    print("Download\t\tEgress\t\t\t{}\t{:10.2f} USD".format(formatSize(get_total), usd_get_total))
+    print("Download Repair\t\tEgress\t\t\t{}\t{:10.2f} USD".format(formatSize(get_repair_total), usd_get_repair_total))
+    print("Download Audit\t\tEgress\t\t\t{}\t{:10.2f} USD".format(formatSize(get_audit_total), usd_get_audit_total))
+    if year_month < 201909:
+        print("\n\t   ** Storage usage not available prior to September 2019 **")
+        print("_______________________________________________________________________________+")
+        print("Total\t\t\t\t\t\t{}\t{:10.2f} USD".format(formatSize(sum_total), usd_sum_total))
+    else:
+        if len(sys.argv) < 3:
+            print("Disk Current\t\tStorage\t{}\t\t\t    -not paid-".format(formatSize(disk_total)))
+        print("Disk Average Month\tStorage\t{}m\t\t\t{:10.2f} USD".format(formatSize(bh_total / hours_month), usd_bh_total))
+        print("Disk Usage\t\tStorage\t{}h\t\t\t    -not paid-".format(formatSize(bh_total)))
+        print("_______________________________________________________________________________+")
+        print("Total\t\t\t\t{}m\t{}\t{:10.2f} USD".format(formatSize(bh_total  / hours_month), formatSize(sum_total), usd_sum_total))
+
+    print("\033[4m\nPayout and escrow by satellite:\033[0m")
+    print("SATELLITE\tFIRST CONTACT\tTYPE\t  MONTH 1-3\t  MONTH 4-6\t  MONTH 7-9\t  MONTH 10+")
+    for i in range(len(usd_sum)):
+        print("{}\t{}\tPayout\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD".format(sat_name[i],sat_start_dt[i],usd_sum[i]*.25,usd_sum[i]*.5,usd_sum[i]*.75,usd_sum[i]))
+        if len(sys.argv) < 3:
+            print("{} (Up.{}/Aud.{})\tEscrow\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\n".format(rep_status[i],uptime_score[i],audit_score[i],usd_sum[i]*.75,usd_sum[i]*.5,usd_sum[i]*.25,0))
+        else:
+            print("\t\t\t\tEscrow\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\n".format(usd_sum[i]*.75,usd_sum[i]*.5,usd_sum[i]*.25,0))
+    if any('*' in sdat for sdat in sat_start_dt):
+        print("* First contact may be earlier, nodes didn't keep contact data before April 2019")
