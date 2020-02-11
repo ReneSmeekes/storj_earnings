@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-version = "8.1.0"
+version = "8.1.1"
 
 from calendar import monthrange
 from datetime import datetime
@@ -29,6 +29,7 @@ else:
 dbPathBW = os.path.join(dbPath,"bandwidth.db")
 dbPathSU = os.path.join(dbPath,"storage_usage.db")
 dbPathPSU = os.path.join(dbPath,"piece_spaced_used.db")
+dbPathR = os.path.join(dbPath,"reputation.db")
 
 if not os.path.isfile(dbPathBW):
     sys.exit('ERROR: bandwidth.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
@@ -39,7 +40,6 @@ if not os.path.isfile(dbPathSU):
 if not os.path.isfile(dbPathPSU):
     sys.exit('ERROR: piece_spaced_used.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
 
-dbPathR = os.path.join(dbPath,"reputation.db")
 if not os.path.isfile(dbPathR):
 	sys.exit('ERROR: reputation.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
 
@@ -81,6 +81,7 @@ satellites = """
                            WHEN 'A28B4F04E10BAE85D67F4C6CB82BF8D4C0F0F47A8EA72627524DEB6EC0000000' THEN 'us-central-1'
                            WHEN 'AF2C42003EFC826AB4361F73F9D890942146FE0EBE806786F8E7190800000000' THEN 'europe-west-1'
                            WHEN '84A74C2CD43C5BA76535E1F42F5DF7C287ED68D33522782F4AFABFDB40000000' THEN 'asia-east-1'
+                           WHEN '7B2DE9D72C2E935F1918C058CAAF8ED00F0581639008707317FF1BD000000000' THEN 'saltlake'
                            WHEN '004AE89E970E703DF42BA4AB1416A3B30B7E1D8E14AA0E558F7EE26800000000' THEN 'stefan-benten'
                            ELSE '-UNKNOWN-'
                        END satellite_name,
@@ -88,7 +89,8 @@ satellites = """
                            WHEN 'A28B4F04E10BAE85D67F4C6CB82BF8D4C0F0F47A8EA72627524DEB6EC0000000' THEN 1
                            WHEN 'AF2C42003EFC826AB4361F73F9D890942146FE0EBE806786F8E7190800000000' THEN 2
                            WHEN '84A74C2CD43C5BA76535E1F42F5DF7C287ED68D33522782F4AFABFDB40000000' THEN 3
-                           WHEN '004AE89E970E703DF42BA4AB1416A3B30B7E1D8E14AA0E558F7EE26800000000' THEN 4
+                           WHEN '7B2DE9D72C2E935F1918C058CAAF8ED00F0581639008707317FF1BD000000000' THEN 4
+                           WHEN '004AE89E970E703DF42BA4AB1416A3B30B7E1D8E14AA0E558F7EE26800000000' THEN 5
                            ELSE 999
                        END satellite_num
                 FROM (
