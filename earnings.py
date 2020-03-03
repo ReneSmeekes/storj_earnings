@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-version = "8.1.2"
+version = "8.1.3"
 
 from calendar import monthrange
 from datetime import datetime
@@ -287,7 +287,7 @@ else:
     print("_______________________________________________________________________________+")
     print("Total\t\t\t\t{}m\t{}\t{:10.2f} USD".format(formatSize(bh_total  / hours_month), formatSize(sum_total), usd_sum_total))
 
-print("\033[4m\nPayout and escrow by satellite:\033[0m")
+print("\033[4m\nPayout and held amount by satellite:\033[0m")
 print("SATELLITE\tFIRST CONTACT\tTYPE\t MONTH 1-3\t MONTH 4-6\t MONTH 7-9\t MONTH 10+")
 for i in range(len(usd_sum)):
     print("{}\t{}\tPaid\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD".format(sat_name[i],sat_start_dt[i],usd_sum[i]*.25,usd_sum[i]*.5,usd_sum[i]*.75,usd_sum[i]))
