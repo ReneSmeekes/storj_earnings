@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-version = "8.1.3"
+version = "8.2.0"
 
 from calendar import monthrange
 from datetime import datetime
@@ -211,6 +211,7 @@ audit_score = list()
 sat_start_dt = list()
 
 hours_month = monthrange(mdate.year, mdate.month)[1] * 24
+month_passed = (datetime.utcnow() - date_from).total_seconds() / (hours_month*3600)
 
 for data in con.execute(query):
     if len(data) < 12:
@@ -266,26 +267,28 @@ usd_sum_total = usd_get_total + usd_get_audit_total + usd_get_repair_total + usd
 if len(sys.argv) == 3:
     print("\033[4m\n{} (Version: {})\033[0m".format(mdate.strftime('%B %Y'), version))    
 else:
-    print("\033[4m\n{} (Version: {})\t\t\t[snapshot: {}]\033[0m".format(mdate.strftime('%B %Y'), version, mdate.strftime('%Y-%m-%d %H:%M:%SZ')))
+    print("\033[4m\n{} (Version: {})\t\t\t\t\t\t[snapshot: {}]\033[0m".format(mdate.strftime('%B %Y'), version, mdate.strftime('%Y-%m-%d %H:%M:%SZ')))
 
 
-print("\t\t\tTYPE\t\tDISK\t   BANDWIDTH\t\tPAYOUT")
-print("Upload\t\t\tIngress\t\t\t{}\t    -not paid-".format(formatSize(put_total)))
-print("Upload Repair\t\tIngress\t\t\t{}\t    -not paid-".format(formatSize(put_repair_total)))
-print("Download\t\tEgress\t\t\t{}\t{:10.2f} USD".format(formatSize(get_total), usd_get_total))
-print("Download Repair\t\tEgress\t\t\t{}\t{:10.2f} USD".format(formatSize(get_repair_total), usd_get_repair_total))
-print("Download Audit\t\tEgress\t\t\t{}\t{:10.2f} USD".format(formatSize(get_audit_total), usd_get_audit_total))
+print("\t\t\tTYPE\t\tPRICE\t\t\tDISK\t   BANDWIDTH\t\tPAYOUT")
+print("Upload\t\t\tIngress\t\t-not paid-\t\t\t{}".format(formatSize(put_total)))
+print("Upload Repair\t\tIngress\t\t-not paid-\t\t\t{}".format(formatSize(put_repair_total)))
+print("Download\t\tEgress\t\t20   USD / TB\t\t\t{}\t{:10.2f} USD".format(formatSize(get_total), usd_get_total))
+print("Download Repair\t\tEgress\t\t10   USD / TB\t\t\t{}\t{:10.2f} USD".format(formatSize(get_repair_total), usd_get_repair_total))
+print("Download Audit\t\tEgress\t\t10   USD / TB\t\t\t{}\t{:10.2f} USD".format(formatSize(get_audit_total), usd_get_audit_total))
 if year_month < 201909:
     print("\n\t   ** Storage usage not available prior to September 2019 **")
-    print("_______________________________________________________________________________+")
-    print("Total\t\t\t\t\t\t{}\t{:10.2f} USD".format(formatSize(sum_total), usd_sum_total))
+    print("_______________________________________________________________________________________________________+")
+    print("Total\t\t\t\t\t\t\t\t\t{}\t{:10.2f} USD".format(formatSize(sum_total), usd_sum_total))
 else:
     if len(sys.argv) < 3:
-        print("Disk Current\t\tStorage\t{}\t\t\t    -not paid-".format(formatSize(disk_total)))
-    print("Disk Average Month\tStorage\t{}m\t\t\t{:10.2f} USD".format(formatSize(bh_total / hours_month), usd_bh_total))
-    print("Disk Usage\t\tStorage\t{}h\t\t\t    -not paid-".format(formatSize(bh_total)))
-    print("_______________________________________________________________________________+")
-    print("Total\t\t\t\t{}m\t{}\t{:10.2f} USD".format(formatSize(bh_total  / hours_month), formatSize(sum_total), usd_sum_total))
+        print("Disk Current\t\tStorage\t\t-not paid-\t{}".format(formatSize(disk_total)))
+    print("Disk Average Month\tStorage\t\t1.50 USD / TBm\t{}m\t\t\t{:10.2f} USD".format(formatSize(bh_total / hours_month), usd_bh_total))
+    print("Disk Usage\t\tStorage\t\t-not paid-\t{}h".format(formatSize(bh_total)))
+    print("_______________________________________________________________________________________________________+")
+    print("Total\t\t\t\t\t\t\t{}m\t{}\t{:10.2f} USD".format(formatSize(bh_total  / hours_month), formatSize(sum_total), usd_sum_total))
+    if len(sys.argv) < 3:
+        print("Estimated total by end of month\t\t\t\t{}m\t{}\t{:10.2f} USD".format(formatSize((bh_total  / hours_month)/month_passed), formatSize(sum_total/month_passed), usd_sum_total/month_passed))
 
 print("\033[4m\nPayout and held amount by satellite:\033[0m")
 print("SATELLITE\tFIRST CONTACT\tTYPE\t MONTH 1-3\t MONTH 4-6\t MONTH 7-9\t MONTH 10+")
