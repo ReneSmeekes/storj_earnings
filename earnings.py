@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-version = "8.2.0"
+version = "8.2.1"
 
 from calendar import monthrange
 from datetime import datetime
@@ -11,7 +11,8 @@ import sqlite3
 audit_req = '100'
 
 if len(sys.argv) > 3:
-    sys.exit('ERROR: No more than two argument allowed. \nIf your path contains spaces use quotes. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
+    sys.exit('ERROR: No more than two argument allowed. \nIf your path contains spaces use quotes. \nExample: python ' 
+             + sys.argv[0] + ' "' + os.getcwd() + '"')
 
 if len(sys.argv) < 2:
     configPath = os.getcwd()
@@ -32,22 +33,31 @@ dbPathPSU = os.path.join(dbPath,"piece_spaced_used.db")
 dbPathR = os.path.join(dbPath,"reputation.db")
 
 if not os.path.isfile(dbPathBW):
-    sys.exit('ERROR: bandwidth.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
+    sys.exit('ERROR: bandwidth.db not found at: "' + dbPath + '" or "' + configPath 
+             + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' 
+             + sys.argv[0] + ' "' + os.getcwd() + '"')
 
 if not os.path.isfile(dbPathSU):
-    sys.exit('ERROR: storage_usage.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
+    sys.exit('ERROR: storage_usage.db not found at: "' + dbPath + '" or "' + configPath 
+             + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' 
+             + sys.argv[0] + ' "' + os.getcwd() + '"')
 
 if not os.path.isfile(dbPathPSU):
-    sys.exit('ERROR: piece_spaced_used.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
+    sys.exit('ERROR: piece_spaced_used.db not found at: "' + dbPath + '" or "' + configPath 
+             + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' 
+             + sys.argv[0] + ' "' + os.getcwd() + '"')
 
 if not os.path.isfile(dbPathR):
-	sys.exit('ERROR: reputation.db not found at: "' + dbPath + '" or "' + configPath + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '"')
+	sys.exit('ERROR: reputation.db not found at: "' + dbPath + '" or "' + configPath 
+             + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' 
+             + sys.argv[0] + ' "' + os.getcwd() + '"')
 
 if len(sys.argv) == 3:
     try:
         mdate = datetime.strptime(sys.argv[2], '%Y-%m')
     except ValueError:
-        sys.exit('ERROR: Invalid month argument. \nUse YYYY-MM as format. \nExample: python ' + sys.argv[0] + ' "' + os.getcwd() + '" "' + datetime.now().strftime('%Y-%m') + '"')
+        sys.exit('ERROR: Invalid month argument. \nUse YYYY-MM as format. \nExample: python ' 
+                 + sys.argv[0] + ' "' + os.getcwd() + '" "' + datetime.now().strftime('%Y-%m') + '"')
 else:
     mdate = datetime.utcnow()
 
@@ -80,6 +90,7 @@ satellites = """
                        CASE hex(satellite_id)
                            WHEN 'A28B4F04E10BAE85D67F4C6CB82BF8D4C0F0F47A8EA72627524DEB6EC0000000' THEN 'us-central-1'
                            WHEN 'AF2C42003EFC826AB4361F73F9D890942146FE0EBE806786F8E7190800000000' THEN 'europe-west-1'
+                           WHEN 'F474535A19DB00DB4F8071A1BE6C2551F4DED6A6E38F0818C68C68D000000000' THEN 'europe-north-1'
                            WHEN '84A74C2CD43C5BA76535E1F42F5DF7C287ED68D33522782F4AFABFDB40000000' THEN 'asia-east-1'
                            WHEN '7B2DE9D72C2E935F1918C058CAAF8ED00F0581639008707317FF1BD000000000' THEN 'saltlake'
                            WHEN '004AE89E970E703DF42BA4AB1416A3B30B7E1D8E14AA0E558F7EE26800000000' THEN 'stefan-benten'
@@ -88,9 +99,10 @@ satellites = """
                        CASE hex(satellite_id)
                            WHEN 'A28B4F04E10BAE85D67F4C6CB82BF8D4C0F0F47A8EA72627524DEB6EC0000000' THEN 1
                            WHEN 'AF2C42003EFC826AB4361F73F9D890942146FE0EBE806786F8E7190800000000' THEN 2
-                           WHEN '84A74C2CD43C5BA76535E1F42F5DF7C287ED68D33522782F4AFABFDB40000000' THEN 3
-                           WHEN '7B2DE9D72C2E935F1918C058CAAF8ED00F0581639008707317FF1BD000000000' THEN 4
-                           WHEN '004AE89E970E703DF42BA4AB1416A3B30B7E1D8E14AA0E558F7EE26800000000' THEN 5
+                           WHEN 'F474535A19DB00DB4F8071A1BE6C2551F4DED6A6E38F0818C68C68D000000000' THEN 3
+                           WHEN '84A74C2CD43C5BA76535E1F42F5DF7C287ED68D33522782F4AFABFDB40000000' THEN 4
+                           WHEN '7B2DE9D72C2E935F1918C058CAAF8ED00F0581639008707317FF1BD000000000' THEN 5
+                           WHEN '004AE89E970E703DF42BA4AB1416A3B30B7E1D8E14AA0E558F7EE26800000000' THEN 6
                            ELSE 999
                        END satellite_num
                 FROM (
