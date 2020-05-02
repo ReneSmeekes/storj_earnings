@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-version = "8.2.1"
+version = "9.0.0"
 
 from calendar import monthrange
 from datetime import datetime
@@ -28,27 +28,32 @@ else:
     dbPath = os.path.join(configPath,"storage")
 
 dbPathBW = os.path.join(dbPath,"bandwidth.db")
-dbPathSU = os.path.join(dbPath,"storage_usage.db")
-dbPathPSU = os.path.join(dbPath,"piece_spaced_used.db")
-dbPathR = os.path.join(dbPath,"reputation.db")
-
 if not os.path.isfile(dbPathBW):
     sys.exit('ERROR: bandwidth.db not found at: "' + dbPath + '" or "' + configPath 
              + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' 
              + sys.argv[0] + ' "' + os.getcwd() + '"')
 
+dbPathSU = os.path.join(dbPath,"storage_usage.db")
 if not os.path.isfile(dbPathSU):
     sys.exit('ERROR: storage_usage.db not found at: "' + dbPath + '" or "' + configPath 
              + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' 
              + sys.argv[0] + ' "' + os.getcwd() + '"')
 
+dbPathPSU = os.path.join(dbPath,"piece_spaced_used.db")
 if not os.path.isfile(dbPathPSU):
     sys.exit('ERROR: piece_spaced_used.db not found at: "' + dbPath + '" or "' + configPath 
              + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' 
              + sys.argv[0] + ' "' + os.getcwd() + '"')
 
+dbPathR = os.path.join(dbPath,"reputation.db")
 if not os.path.isfile(dbPathR):
 	sys.exit('ERROR: reputation.db not found at: "' + dbPath + '" or "' + configPath 
+             + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' 
+             + sys.argv[0] + ' "' + os.getcwd() + '"')
+
+dbPathH = os.path.join(dbPath,"heldamount.db")
+if not os.path.isfile(dbPathR):
+	sys.exit('ERROR: heldamount.db not found at: "' + dbPath + '" or "' + configPath 
              + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' 
              + sys.argv[0] + ' "' + os.getcwd() + '"')
 
@@ -82,7 +87,13 @@ def formatSize(size):
 date_from = datetime(mdate.year, mdate.month, 1)
 date_to = datetime(mdate.year + int(mdate.month / 12), ((mdate.month % 12) + 1), 1)
 year_month = (mdate.year * 100) + mdate.month
+year_month_char = '{:04n}-{:02n}'.format(mdate.year, mdate.month)
 
+if mdate.month == 1:
+    year_month_prev_char = '{:04n}-{:02n}'.format(mdate.year - 1, 12)
+else:
+    year_month_prev_char = '{:04n}-{:02n}'.format(mdate.year, mdate.month - 1)
+    
 time_window = "interval_start >= '" + date_from.strftime("%Y-%m-%d") + "' AND interval_start < '" + date_to.strftime("%Y-%m-%d") + "'"
 
 satellites = """
@@ -127,7 +138,15 @@ query = """
     ,COALESCE(d.vet_count,0) vet_count
     ,COALESCE(d.uptime_score,0) uptime_score
     ,COALESCE(d.audit_score,0) audit_score
-    ,COALESCE(sat_start_dt, '') sat_start_dt
+    ,COALESCE(e.sat_start_dt, '') sat_start_dt
+    ,COALESCE(f.surge_percent, 100) surge_percent
+    ,COALESCE(g.held_so_far, 0) held_so_far
+    ,CASE 
+       WHEN g.last_period < '{year_month_prev_char}'                 THEN n_months_prec + 2
+       WHEN g.last_period = '{year_month_prev_char}'                 THEN n_months_prec + 1
+       WHEN g.last_period IS NULL AND e.sat_start_dt < '{date_from}' THEN 2
+                                                                     ELSE 1
+     END month_nr
     FROM ({satellites}) x
     LEFT JOIN 
     psu.piece_space_used b
@@ -177,8 +196,28 @@ query = """
       GROUP BY satellite_id
     ) e
     ON x.satellite_id = e.satellite_id
+    LEFT JOIN (
+      SELECT
+      satellite_id
+      ,CASE WHEN surge_percent = 0 THEN 100 ELSE surge_percent END AS surge_percent
+      FROM h.paystubs
+      WHERE period = '{year_month_char}'
+    ) f
+    ON x.satellite_id = f.satellite_id
+    LEFT JOIN (
+      SELECT
+      satellite_id
+      ,COUNT(period) n_months_prec
+      ,MAX(period) last_period
+      ,SUM(held)/1000000.0 held_so_far
+      FROM h.paystubs
+      WHERE period < '{year_month_char}'
+      GROUP BY satellite_id
+    ) g
+    ON x.satellite_id = g.satellite_id
     ORDER BY x.satellite_num;
-""".format(satellites=satellites, time_window=time_window, audit_req=audit_req)
+""".format(satellites=satellites, time_window=time_window, audit_req=audit_req, year_month_char=year_month_char, 
+           year_month_prev_char=year_month_prev_char, date_from=date_from.strftime("%Y-%m-%d"))
 
 con = sqlite3.connect(dbPathBW)
 
@@ -191,13 +230,8 @@ con.execute('ATTACH DATABASE ? AS psu;',tPSU)
 tR = (dbPathR,)
 con.execute('ATTACH DATABASE ? AS r;',tR)
 
-put_total = 0
-get_total = 0
-get_audit_total = 0
-get_repair_total = 0
-put_repair_total = 0
-disk_total = 0
-bh_total = 0
+tH = (dbPathH,)
+con.execute('ATTACH DATABASE ? AS h;',tH)
 
 sat_name = list()
 put = list()
@@ -207,13 +241,17 @@ get_repair = list()
 put_repair = list()
 disk = list()
 bh = list()
-sums = list()
+bw_sum = list()
 
 usd_get = list()
 usd_get_audit = list()
 usd_get_repair = list()
 usd_bh = list()
+
+surge_percent = list()
+
 usd_sum = list()
+usd_sum_surge = list()
 
 rep_status = list()
 vet_count = list()
@@ -221,6 +259,15 @@ uptime_score = list()
 audit_score = list()
 
 sat_start_dt = list()
+month_nr = list()
+
+held_so_far = list()
+
+held_perc = list()
+paid_sum = list()
+paid_sum_surge = list()
+held_sum = list()
+held_sum_surge = list()
 
 hours_month = monthrange(mdate.year, mdate.month)[1] * 24
 month_passed = (datetime.utcnow() - date_from).total_seconds() / (hours_month*3600)
@@ -228,14 +275,6 @@ month_passed = (datetime.utcnow() - date_from).total_seconds() / (hours_month*36
 for data in con.execute(query):
     if len(data) < 12:
         sys.exit('ERROR SQLite3: ' + data)
-    put_total = put_total + int(data[1])
-    get_total = get_total + int(data[2])
-    get_audit_total = get_audit_total + int(data[3])
-    get_repair_total = get_repair_total + int(data[4])
-    put_repair_total = put_repair_total + int(data[5])
-    bh_total = bh_total + int(data[6])
-    if len(sys.argv) != 3:   
-        disk_total = disk_total + int(data[7])
 
     #by satellite
     sat_name.append(data[0])
@@ -249,13 +288,17 @@ for data in con.execute(query):
     else:
         disk.append(0)
     bh.append(int(data[6]))
-    sums.append(put[-1] + get[-1] + get_audit[-1] + get_repair[-1] + put_repair[-1])
+    bw_sum.append(put[-1] + get[-1] + get_audit[-1] + get_repair[-1] + put_repair[-1])
     
     usd_get.append((20 / (1000.00**4)) * get[-1])
     usd_get_audit.append((10 / (1000.00**4)) * get_audit[-1])
     usd_get_repair.append((10 / (1000.00**4)) * get_repair[-1])
     usd_bh.append((1.5 / (1000.00**4)) * (bh[-1] / hours_month))
+    
+    surge_percent.append(data[13])
+
     usd_sum.append(usd_get[-1] + usd_get_audit[-1] + usd_get_repair[-1] + usd_bh[-1])
+    usd_sum_surge.append(((usd_get[-1] + usd_get_audit[-1] + usd_get_repair[-1] + usd_bh[-1]) * surge_percent[-1]) / 100)
     
     if data[8] == 'Vetting:':
         rep_status.append(data[8] + '{:d}%'.format((100*int(data[9]))//int(audit_req)) )
@@ -265,16 +308,23 @@ for data in con.execute(query):
     audit_score.append(int(data[11]))
     
     sat_start_dt.append(data[12])
-
-sum_total = put_total + get_total + get_audit_total + get_repair_total + put_repair_total
-
-usd_get_total = (20 / (1000.00**4)) * get_total
-usd_get_audit_total = (10 / (1000.00**4)) * get_audit_total
-usd_get_repair_total = (10 / (1000.00**4)) * get_repair_total
-usd_bh_total = (1.5 / (1000.00**4)) * (bh_total / hours_month)
-
-usd_sum_total = usd_get_total + usd_get_audit_total + usd_get_repair_total + usd_bh_total
-
+    month_nr.append(data[15])
+    
+    held_so_far.append(data[14])
+    
+    if month_nr[-1] >= 1 and month_nr[-1] <= 3:
+        held_perc.append(.75)
+    elif month_nr[-1] >= 4 and month_nr[-1] <= 6:
+        held_perc.append(.50)
+    elif month_nr[-1] >= 7 and month_nr[-1] <= 9:
+        held_perc.append(.25)
+    else:
+        held_perc.append(0)
+    
+    paid_sum.append((1-held_perc[-1])*usd_sum[-1])
+    paid_sum_surge.append((paid_sum[-1] * surge_percent[-1]) / 100)
+    held_sum.append(held_perc[-1]*usd_sum[-1])
+    held_sum_surge.append((held_sum[-1] * surge_percent[-1]) / 100)
 
 if len(sys.argv) == 3:
     print("\033[4m\n{} (Version: {})\033[0m".format(mdate.strftime('%B %Y'), version))    
@@ -283,32 +333,40 @@ else:
 
 
 print("\t\t\tTYPE\t\tPRICE\t\t\tDISK\t   BANDWIDTH\t\tPAYOUT")
-print("Upload\t\t\tIngress\t\t-not paid-\t\t\t{}".format(formatSize(put_total)))
-print("Upload Repair\t\tIngress\t\t-not paid-\t\t\t{}".format(formatSize(put_repair_total)))
-print("Download\t\tEgress\t\t20   USD / TB\t\t\t{}\t{:10.2f} USD".format(formatSize(get_total), usd_get_total))
-print("Download Repair\t\tEgress\t\t10   USD / TB\t\t\t{}\t{:10.2f} USD".format(formatSize(get_repair_total), usd_get_repair_total))
-print("Download Audit\t\tEgress\t\t10   USD / TB\t\t\t{}\t{:10.2f} USD".format(formatSize(get_audit_total), usd_get_audit_total))
+print("Upload\t\t\tIngress\t\t-not paid-\t\t\t{}".format(formatSize(sum(put))))
+print("Upload Repair\t\tIngress\t\t-not paid-\t\t\t{}".format(formatSize(sum(put_repair))))
+print("Download\t\tEgress\t\t20   USD / TB\t\t\t{}\t{:10.2f} USD".format(formatSize(sum(get)), sum(usd_get)))
+print("Download Repair\t\tEgress\t\t10   USD / TB\t\t\t{}\t{:10.2f} USD".format(formatSize(sum(get_repair)), sum(usd_get_repair)))
+print("Download Audit\t\tEgress\t\t10   USD / TB\t\t\t{}\t{:10.2f} USD".format(formatSize(sum(get_audit)), sum(usd_get_audit)))
 if year_month < 201909:
     print("\n\t   ** Storage usage not available prior to September 2019 **")
     print("_______________________________________________________________________________________________________+")
-    print("Total\t\t\t\t\t\t\t\t\t{}\t{:10.2f} USD".format(formatSize(sum_total), usd_sum_total))
+    print("Total\t\t\t\t\t\t\t\t\t{}\t{:10.2f} USD".format(formatSize(sum(bw_sum)), sum(usd_sum)))
 else:
     if len(sys.argv) < 3:
-        print("Disk Current\t\tStorage\t\t-not paid-\t{}".format(formatSize(disk_total)))
-    print("Disk Average Month\tStorage\t\t1.50 USD / TBm\t{}m\t\t\t{:10.2f} USD".format(formatSize(bh_total / hours_month), usd_bh_total))
-    print("Disk Usage\t\tStorage\t\t-not paid-\t{}h".format(formatSize(bh_total)))
+        print("Disk Current\t\tStorage\t\t-not paid-\t{}".format(formatSize(sum(disk))))
+    print("Disk Average Month\tStorage\t\t1.50 USD / TBm\t{}m\t\t\t{:10.2f} USD".format(formatSize(sum(bh) / hours_month), sum(usd_bh)))
+    print("Disk Usage\t\tStorage\t\t-not paid-\t{}h".format(formatSize(sum(bh))))
     print("_______________________________________________________________________________________________________+")
-    print("Total\t\t\t\t\t\t\t{}m\t{}\t{:10.2f} USD".format(formatSize(bh_total  / hours_month), formatSize(sum_total), usd_sum_total))
+    print("Total\t\t\t\t\t\t\t{}m\t{}\t{:10.2f} USD".format(formatSize(sum(bh)  / hours_month), formatSize(sum(bw_sum)), sum(usd_sum)))
     if len(sys.argv) < 3:
-        print("Estimated total by end of month\t\t\t\t{}m\t{}\t{:10.2f} USD".format(formatSize((bh_total  / hours_month)/month_passed), formatSize(sum_total/month_passed), usd_sum_total/month_passed))
+        print("Estimated total by end of month\t\t\t\t{}m\t{}\t{:10.2f} USD".format(formatSize((sum(bh)  / hours_month)/month_passed), formatSize(sum(bw_sum)/month_passed), sum(usd_sum)/month_passed))
+    elif sum(usd_sum_surge) > sum(usd_sum):
+        print("Total Surge ({:n}%)\t\t\t\t\t\t\t\t\t{:10.2f} USD".format((sum(usd_sum_surge)*100) / sum(usd_sum), sum(usd_sum_surge)))
 
 print("\033[4m\nPayout and held amount by satellite:\033[0m")
-print("SATELLITE\tFIRST CONTACT\tTYPE\t MONTH 1-3\t MONTH 4-6\t MONTH 7-9\t MONTH 10+")
+
+print("SATELLITE\t\tMONTH\t  HELD TOTAL\t      EARNED\tHELD%\t\t HELD\t        PAID")
 for i in range(len(usd_sum)):
-    print("{}\t{}\tPaid\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD".format(sat_name[i],sat_start_dt[i],usd_sum[i]*.25,usd_sum[i]*.5,usd_sum[i]*.75,usd_sum[i]))
+    print("{}\t\t{:5n}\t{:8.2f} USD\t{:8.4f} USD\t{:4n}%\t {:8.4f} USD\t{:8.4f} USD".format(sat_name[i],month_nr[i],held_so_far[i],usd_sum[i],held_perc[i]*100,held_sum[i],paid_sum[i]))
     if len(sys.argv) < 3:
-        print("{} (Audit score:{})\tHeld\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\n".format(rep_status[i],audit_score[i],usd_sum[i]*.75,usd_sum[i]*.5,usd_sum[i]*.25,0))
+        print("{} (Audit score:{})".format(rep_status[i],audit_score[i]))
+    elif surge_percent[i] > 100:
+        print("\t\t\t\tSURGE ({:n}%)\t{:8.4f} USD\t{:4n}%\t {:8.4f} USD\t{:8.4f} USD".format(surge_percent[i],usd_sum_surge[i],held_perc[i]*100,held_sum_surge[i],paid_sum_surge[i]))
     else:
-        print("\t\t\t\tEscrow\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\t{:7.4f} USD\n".format(usd_sum[i]*.75,usd_sum[i]*.5,usd_sum[i]*.25,0))
-if any('*' in sdat for sdat in sat_start_dt):
-    print("* First contact may be earlier, nodes didn't keep contact data before April 2019")
+        print("")
+
+print("_____________________________________________________________________________________________________+")
+print("TOTAL\t\t\t\t{:8.2f} USD\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format(sum(held_so_far),sum(usd_sum),sum(held_sum),sum(paid_sum)))
+if sum(usd_sum_surge) > sum(usd_sum):
+    print("\t\t\t\tSURGE ({:n}%)\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format((sum(usd_sum_surge)*100)/sum(usd_sum),sum(usd_sum_surge),sum(held_sum_surge),sum(paid_sum_surge)))
