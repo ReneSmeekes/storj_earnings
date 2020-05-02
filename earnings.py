@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-version = "9.0.0"
+version = "9.0.1"
 
 from calendar import monthrange
 from datetime import datetime
@@ -284,7 +284,7 @@ for data in con.execute(query):
     get_repair.append(int(data[4]))
     put_repair.append(int(data[5]))
     if len(sys.argv) != 3:   
-        disk.append(int(data[6]))
+        disk.append(int(data[7]))
     else:
         disk.append(0)
     bh.append(int(data[6]))
