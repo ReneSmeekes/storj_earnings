@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-version = "9.0.1"
+version = "9.0.2"
 
 from calendar import monthrange
 from datetime import datetime
@@ -339,7 +339,7 @@ print("Download\t\tEgress\t\t20   USD / TB\t\t\t{}\t{:10.2f} USD".format(formatS
 print("Download Repair\t\tEgress\t\t10   USD / TB\t\t\t{}\t{:10.2f} USD".format(formatSize(sum(get_repair)), sum(usd_get_repair)))
 print("Download Audit\t\tEgress\t\t10   USD / TB\t\t\t{}\t{:10.2f} USD".format(formatSize(sum(get_audit)), sum(usd_get_audit)))
 if year_month < 201909:
-    print("\n\t   ** Storage usage not available prior to September 2019 **")
+    print("\n\t\t       ** Storage usage not available prior to September 2019 **")
     print("_______________________________________________________________________________________________________+")
     print("Total\t\t\t\t\t\t\t\t\t{}\t{:10.2f} USD".format(formatSize(sum(bw_sum)), sum(usd_sum)))
 else:
@@ -349,10 +349,10 @@ else:
     print("Disk Usage\t\tStorage\t\t-not paid-\t{}h".format(formatSize(sum(bh))))
     print("_______________________________________________________________________________________________________+")
     print("Total\t\t\t\t\t\t\t{}m\t{}\t{:10.2f} USD".format(formatSize(sum(bh)  / hours_month), formatSize(sum(bw_sum)), sum(usd_sum)))
-    if len(sys.argv) < 3:
-        print("Estimated total by end of month\t\t\t\t{}m\t{}\t{:10.2f} USD".format(formatSize((sum(bh)  / hours_month)/month_passed), formatSize(sum(bw_sum)/month_passed), sum(usd_sum)/month_passed))
-    elif sum(usd_sum_surge) > sum(usd_sum):
-        print("Total Surge ({:n}%)\t\t\t\t\t\t\t\t\t{:10.2f} USD".format((sum(usd_sum_surge)*100) / sum(usd_sum), sum(usd_sum_surge)))
+if len(sys.argv) < 3:
+    print("Estimated total by end of month\t\t\t\t{}m\t{}\t{:10.2f} USD".format(formatSize((sum(bh)  / hours_month)/month_passed), formatSize(sum(bw_sum)/month_passed), sum(usd_sum)/month_passed))
+elif sum(usd_sum_surge) > sum(usd_sum):
+    print("Total Surge ({:n}%)\t\t\t\t\t\t\t\t\t{:10.2f} USD".format((sum(usd_sum_surge)*100) / sum(usd_sum), sum(usd_sum_surge)))
 
 print("\033[4m\nPayout and held amount by satellite:\033[0m")
 
