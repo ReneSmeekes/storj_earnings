@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-version = "9.0.2"
+version = "9.1.0"
 
 from calendar import monthrange
 from datetime import datetime
+from statistics import mean
 
 import os
 import sys
@@ -141,6 +142,8 @@ query = """
     ,COALESCE(e.sat_start_dt, '') sat_start_dt
     ,COALESCE(f.surge_percent, 100) surge_percent
     ,COALESCE(g.held_so_far, 0) held_so_far
+    ,COALESCE(g.disp_so_far, 0) disp_so_far
+    ,COALESCE(f.disposed, 0) disposed
     ,CASE 
        WHEN g.last_period < '{year_month_prev_char}'                 THEN n_months_prec + 2
        WHEN g.last_period = '{year_month_prev_char}'                 THEN n_months_prec + 1
@@ -200,6 +203,7 @@ query = """
       SELECT
       satellite_id
       ,CASE WHEN surge_percent = 0 THEN 100 ELSE surge_percent END AS surge_percent
+      ,disposed/1000000.0 disposed
       FROM h.paystubs
       WHERE period = '{year_month_char}'
     ) f
@@ -210,6 +214,7 @@ query = """
       ,COUNT(period) n_months_prec
       ,MAX(period) last_period
       ,SUM(held)/1000000.0 held_so_far
+      ,SUM(disposed)/1000000.0 disp_so_far
       FROM h.paystubs
       WHERE period < '{year_month_char}'
       GROUP BY satellite_id
@@ -262,6 +267,9 @@ sat_start_dt = list()
 month_nr = list()
 
 held_so_far = list()
+disp_so_far = list()
+
+disposed = list()
 
 held_perc = list()
 paid_sum = list()
@@ -308,10 +316,14 @@ for data in con.execute(query):
     audit_score.append(int(data[11]))
     
     sat_start_dt.append(data[12])
-    month_nr.append(data[15])
     
     held_so_far.append(data[14])
+    disp_so_far.append(data[15])
     
+    disposed.append(data[16])
+    
+    month_nr.append(data[17])
+
     if month_nr[-1] >= 1 and month_nr[-1] <= 3:
         held_perc.append(.75)
     elif month_nr[-1] >= 4 and month_nr[-1] <= 6:
@@ -325,6 +337,8 @@ for data in con.execute(query):
     paid_sum_surge.append((paid_sum[-1] * surge_percent[-1]) / 100)
     held_sum.append(held_perc[-1]*usd_sum[-1])
     held_sum_surge.append((held_sum[-1] * surge_percent[-1]) / 100)
+    
+con.close()
 
 if len(sys.argv) == 3:
     print("\033[4m\n{} (Version: {})\033[0m".format(mdate.strftime('%B %Y'), version))    
@@ -348,25 +362,33 @@ else:
     print("Disk Average Month\tStorage\t\t1.50 USD / TBm\t{}m\t\t\t{:10.2f} USD".format(formatSize(sum(bh) / hours_month), sum(usd_bh)))
     print("Disk Usage\t\tStorage\t\t-not paid-\t{}h".format(formatSize(sum(bh))))
     print("_______________________________________________________________________________________________________+")
-    print("Total\t\t\t\t\t\t\t{}m\t{}\t{:10.2f} USD".format(formatSize(sum(bh)  / hours_month), formatSize(sum(bw_sum)), sum(usd_sum)))
+    print("Total\t\t\t\t\t\t\t{}m\t{}\t{:10.2f} USD".format(formatSize(sum(bh) / hours_month), formatSize(sum(bw_sum)), sum(usd_sum)))
 if len(sys.argv) < 3:
-    print("Estimated total by end of month\t\t\t\t{}m\t{}\t{:10.2f} USD".format(formatSize((sum(bh)  / hours_month)/month_passed), formatSize(sum(bw_sum)/month_passed), sum(usd_sum)/month_passed))
-elif sum(usd_sum_surge) > sum(usd_sum):
+    print("Estimated total by end of month\t\t\t\t{}m\t{}\t{:10.2f} USD".format(formatSize((sum(bh) / hours_month)/month_passed), formatSize(sum(bw_sum)/month_passed), sum(usd_sum)/month_passed))
+elif mean(surge_percent) > 100:
     print("Total Surge ({:n}%)\t\t\t\t\t\t\t\t\t{:10.2f} USD".format((sum(usd_sum_surge)*100) / sum(usd_sum), sum(usd_sum_surge)))
 
 print("\033[4m\nPayout and held amount by satellite:\033[0m")
 
 print("SATELLITE\t\tMONTH\t  HELD TOTAL\t      EARNED\tHELD%\t\t HELD\t        PAID")
 for i in range(len(usd_sum)):
-    print("{}\t\t{:5n}\t{:8.2f} USD\t{:8.4f} USD\t{:4n}%\t {:8.4f} USD\t{:8.4f} USD".format(sat_name[i],month_nr[i],held_so_far[i],usd_sum[i],held_perc[i]*100,held_sum[i],paid_sum[i]))
+    print("{}\t\t{:5n}\t{:8.2f} USD\t{:8.4f} USD\t{:4n}%\t {:8.4f} USD\t{:8.4f} USD".format(sat_name[i],month_nr[i],held_so_far[i]-disp_so_far[i],usd_sum[i],held_perc[i]*100,held_sum[i],paid_sum[i]))
     if len(sys.argv) < 3:
-        print("{} (Audit score:{})".format(rep_status[i],audit_score[i]))
+        print("\t{} (Audit score:{})".format(rep_status[i],audit_score[i]))
     elif surge_percent[i] > 100:
-        print("\t\t\t\tSURGE ({:n}%)\t{:8.4f} USD\t{:4n}%\t {:8.4f} USD\t{:8.4f} USD".format(surge_percent[i],usd_sum_surge[i],held_perc[i]*100,held_sum_surge[i],paid_sum_surge[i]))
+        print("\tSURGE ({:n}%)\t\t\t\t{:8.4f} USD\t{:4n}%\t {:8.4f} USD\t{:8.4f} USD".format(surge_percent[i],usd_sum_surge[i],held_perc[i]*100,held_sum_surge[i],paid_sum_surge[i]))
     else:
         print("")
-
+    
+    if disposed[i] > 0:
+        print("\tHELD AMOUNT RETURNED\t{:8.2f} USD\t\t\t\t\t\t{:8.4f} USD".format(-1*disposed[i],disposed[i]))
+        print("\tAFTER RETURN\t\t{:8.2f} USD\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format(held_so_far[i]-(disp_so_far[i]+disposed[i]),usd_sum_surge[i],held_sum_surge[i],paid_sum_surge[i]+disposed[i]))
+        
 print("_____________________________________________________________________________________________________+")
-print("TOTAL\t\t\t\t{:8.2f} USD\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format(sum(held_so_far),sum(usd_sum),sum(held_sum),sum(paid_sum)))
-if sum(usd_sum_surge) > sum(usd_sum):
-    print("\t\t\t\tSURGE ({:n}%)\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format((sum(usd_sum_surge)*100)/sum(usd_sum),sum(usd_sum_surge),sum(held_sum_surge),sum(paid_sum_surge)))
+print("TOTAL\t\t\t\t{:8.2f} USD\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format(sum(held_so_far)-sum(disp_so_far),sum(usd_sum),sum(held_sum),sum(paid_sum)))
+if mean(surge_percent) > 100:
+    print("\tSURGE ({:n}%)\t\t\t\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format((sum(usd_sum_surge)*100)/sum(usd_sum),sum(usd_sum_surge),sum(held_sum_surge),sum(paid_sum_surge)))
+
+if disposed[i] > 0:
+    print("\tHELD AMOUNT RETURNED\t{:8.2f} USD\t\t\t\t\t\t{:8.4f} USD".format(-1*disposed[i],disposed[i]))
+    print("\tAFTER RETURN\t\t{:8.2f} USD\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format(sum(held_so_far)-(sum(disp_so_far)+sum(disposed)),sum(usd_sum_surge),sum(held_sum_surge),sum(paid_sum_surge)+sum(disposed)))
