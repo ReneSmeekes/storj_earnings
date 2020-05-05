@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
-version = "9.1.0"
+version = "9.1.1"
 
 from calendar import monthrange
 from datetime import datetime
-from statistics import mean
 
 import os
 import sys
@@ -365,7 +364,7 @@ else:
     print("Total\t\t\t\t\t\t\t{}m\t{}\t{:10.2f} USD".format(formatSize(sum(bh) / hours_month), formatSize(sum(bw_sum)), sum(usd_sum)))
 if len(sys.argv) < 3:
     print("Estimated total by end of month\t\t\t\t{}m\t{}\t{:10.2f} USD".format(formatSize((sum(bh) / hours_month)/month_passed), formatSize(sum(bw_sum)/month_passed), sum(usd_sum)/month_passed))
-elif mean(surge_percent) > 100:
+elif len(surge_percent) > 0 and sum(surge_percent)/len(surge_percent) > 100:
     print("Total Surge ({:n}%)\t\t\t\t\t\t\t\t\t{:10.2f} USD".format((sum(usd_sum_surge)*100) / sum(usd_sum), sum(usd_sum_surge)))
 
 print("\033[4m\nPayout and held amount by satellite:\033[0m")
@@ -386,9 +385,9 @@ for i in range(len(usd_sum)):
         
 print("_____________________________________________________________________________________________________+")
 print("TOTAL\t\t\t\t{:8.2f} USD\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format(sum(held_so_far)-sum(disp_so_far),sum(usd_sum),sum(held_sum),sum(paid_sum)))
-if mean(surge_percent) > 100:
+if len(surge_percent) > 0 and sum(surge_percent)/len(surge_percent) > 100:
     print("\tSURGE ({:n}%)\t\t\t\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format((sum(usd_sum_surge)*100)/sum(usd_sum),sum(usd_sum_surge),sum(held_sum_surge),sum(paid_sum_surge)))
 
-if disposed[i] > 0:
-    print("\tHELD AMOUNT RETURNED\t{:8.2f} USD\t\t\t\t\t\t{:8.4f} USD".format(-1*disposed[i],disposed[i]))
+if sum(disposed) > 0:
+    print("\tHELD AMOUNT RETURNED\t{:8.2f} USD\t\t\t\t\t\t{:8.4f} USD".format(-1*sum(disposed),sum(disposed)))
     print("\tAFTER RETURN\t\t{:8.2f} USD\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format(sum(held_so_far)-(sum(disp_so_far)+sum(disposed)),sum(usd_sum_surge),sum(held_sum_surge),sum(paid_sum_surge)+sum(disposed)))
