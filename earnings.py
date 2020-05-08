@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-version = "9.1.1"
+version = "9.2.0"
 
 from calendar import monthrange
 from datetime import datetime
@@ -138,17 +138,14 @@ query = """
     ,COALESCE(d.vet_count,0) vet_count
     ,COALESCE(d.uptime_score,0) uptime_score
     ,COALESCE(d.audit_score,0) audit_score
-    ,COALESCE(e.sat_start_dt, '') sat_start_dt
+    ,COALESCE(d.joined_at, '') sat_start_dt
     ,COALESCE(f.surge_percent, 100) surge_percent
     ,COALESCE(g.held_so_far, 0) held_so_far
     ,COALESCE(g.disp_so_far, 0) disp_so_far
     ,COALESCE(f.disposed, 0) disposed
-    ,CASE 
-       WHEN g.last_period < '{year_month_prev_char}'                 THEN n_months_prec + 2
-       WHEN g.last_period = '{year_month_prev_char}'                 THEN n_months_prec + 1
-       WHEN g.last_period IS NULL AND e.sat_start_dt < '{date_from}' THEN 2
-                                                                     ELSE 1
-     END month_nr
+    ,1+strftime('%m', date('{date_from}')) - strftime('%m', date(d.joined_at)) +
+     (strftime('%Y', date('{date_from}')) - strftime('%Y', date(d.joined_at))) * 12 AS month_nr
+    ,COALESCE(SUBSTR(f.pay_stat, 1, LENGTH(f.pay_stat)-2), '') AS pay_status
     FROM ({satellites}) x
     LEFT JOIN 
     psu.piece_space_used b
@@ -180,9 +177,11 @@ query = """
     LEFT JOIN (
       SELECT
       satellite_id
-      ,CASE WHEN disqualified IS NOT NULL THEN 'Status:DQ'
-            WHEN audit_success_count < {audit_req} THEN 'Vetting:'
-            ELSE 'Status:OK' END AS rep_status
+      ,CASE WHEN disqualified IS NOT NULL THEN 'Disqualified @ ' || datetime(disqualified)
+            WHEN suspended IS NOT NULL THEN 'Suspended @ ' || datetime(suspended)
+            WHEN audit_success_count < {audit_req} THEN 'Vetting '
+            ELSE 'OK' END AS rep_status
+      ,date(joined_at) as joined_at
       ,MIN(audit_success_count, {audit_req}) AS vet_count
       ,CAST(uptime_reputation_score * 1000 as INT) AS uptime_score
       ,CAST(audit_reputation_score * 1000 as INT) AS audit_score
@@ -192,15 +191,10 @@ query = """
     LEFT JOIN (
       SELECT
       satellite_id
-      ,strftime('%Y-%m-%d',MIN(interval_start))||
-      CASE WHEN MIN(interval_start) < '2019-05-01' THEN '*' ELSE '' END AS sat_start_dt
-      FROM bandwidth_usage_rollups
-      GROUP BY satellite_id
-    ) e
-    ON x.satellite_id = e.satellite_id
-    LEFT JOIN (
-      SELECT
-      satellite_id
+      , CASE WHEN INSTR(codes, 'D') > 0 THEN 'Disqualified, '          ELSE '' END
+      ||CASE WHEN INSTR(codes, 'X') > 0 THEN 'Graceful Exit, '         ELSE '' END
+      ||CASE WHEN INSTR(codes, 'S') > 0 THEN 'Sanctioned Country, '    ELSE '' END
+      ||CASE WHEN INSTR(codes, 'T') > 0 THEN 'Tax form 1099 missing, ' ELSE '' END AS pay_stat
       ,CASE WHEN surge_percent = 0 THEN 100 ELSE surge_percent END AS surge_percent
       ,disposed/1000000.0 disposed
       FROM h.paystubs
@@ -265,6 +259,8 @@ audit_score = list()
 sat_start_dt = list()
 month_nr = list()
 
+pay_status = list()
+
 held_so_far = list()
 disp_so_far = list()
 
@@ -307,7 +303,7 @@ for data in con.execute(query):
     usd_sum.append(usd_get[-1] + usd_get_audit[-1] + usd_get_repair[-1] + usd_bh[-1])
     usd_sum_surge.append(((usd_get[-1] + usd_get_audit[-1] + usd_get_repair[-1] + usd_bh[-1]) * surge_percent[-1]) / 100)
     
-    if data[8] == 'Vetting:':
+    if data[8] == 'Vetting ':
         rep_status.append(data[8] + '{:d}%'.format((100*int(data[9]))//int(audit_req)) )
     else:
         rep_status.append(data[8])
@@ -322,6 +318,8 @@ for data in con.execute(query):
     disposed.append(data[16])
     
     month_nr.append(data[17])
+
+    pay_status.append(data[18])
 
     if month_nr[-1] >= 1 and month_nr[-1] <= 3:
         held_perc.append(.75)
@@ -369,25 +367,33 @@ elif len(surge_percent) > 0 and sum(surge_percent)/len(surge_percent) > 100:
 
 print("\033[4m\nPayout and held amount by satellite:\033[0m")
 
-print("SATELLITE\t\tMONTH\t  HELD TOTAL\t      EARNED\tHELD%\t\t HELD\t        PAID")
+print("SATELLITE\tMONTH\tJOINED\t     HELD TOTAL\t      EARNED\tHELD%\t\t HELD\t        PAID")
+
+nl = ''
 for i in range(len(usd_sum)):
-    print("{}\t\t{:5n}\t{:8.2f} USD\t{:8.4f} USD\t{:4n}%\t {:8.4f} USD\t{:8.4f} USD".format(sat_name[i],month_nr[i],held_so_far[i]-disp_so_far[i],usd_sum[i],held_perc[i]*100,held_sum[i],paid_sum[i]))
+    print("{}{}\t{:5n}\t{} {:8.2f} USD\t{:8.4f} USD\t{:4n}%\t {:8.4f} USD\t{:8.4f} USD".format(nl,sat_name[i],month_nr[i],sat_start_dt[i],held_so_far[i]-disp_so_far[i],usd_sum[i],held_perc[i]*100,held_sum[i],paid_sum[i]))
+    nl = '\n'
     if len(sys.argv) < 3:
-        print("\t{} (Audit score:{})".format(rep_status[i],audit_score[i]))
-    elif surge_percent[i] > 100:
+        print("\tStatus: {} (Audit score: {})".format(rep_status[i],audit_score[i]))
+        nl = ''
+    if surge_percent[i] > 100:
         print("\tSURGE ({:n}%)\t\t\t\t{:8.4f} USD\t{:4n}%\t {:8.4f} USD\t{:8.4f} USD".format(surge_percent[i],usd_sum_surge[i],held_perc[i]*100,held_sum_surge[i],paid_sum_surge[i]))
-    else:
-        print("")
+        nl = ''
     
     if disposed[i] > 0:
-        print("\tHELD AMOUNT RETURNED\t{:8.2f} USD\t\t\t\t\t\t{:8.4f} USD".format(-1*disposed[i],disposed[i]))
-        print("\tAFTER RETURN\t\t{:8.2f} USD\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format(held_so_far[i]-(disp_so_far[i]+disposed[i]),usd_sum_surge[i],held_sum_surge[i],paid_sum_surge[i]+disposed[i]))
-        
+        print("\tHELD AMOUNT RETURNED\t   {:8.2f} USD\t\t\t\t\t\t{:8.4f} USD".format(-1*disposed[i],disposed[i]))
+        print("\tAFTER RETURN\t\t   {:8.2f} USD\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format(held_so_far[i]-(disp_so_far[i]+disposed[i]),usd_sum_surge[i],held_sum_surge[i],paid_sum_surge[i]+disposed[i]))
+        nl = ''
+
+    if len(pay_status[i]) > 0:
+        print("\tPAYOUT NOTES: {}".format(pay_status[i]))
+        nl = ''
+    
 print("_____________________________________________________________________________________________________+")
-print("TOTAL\t\t\t\t{:8.2f} USD\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format(sum(held_so_far)-sum(disp_so_far),sum(usd_sum),sum(held_sum),sum(paid_sum)))
+print("TOTAL\t\t\t\t   {:8.2f} USD\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format(sum(held_so_far)-sum(disp_so_far),sum(usd_sum),sum(held_sum),sum(paid_sum)))
 if len(surge_percent) > 0 and sum(surge_percent)/len(surge_percent) > 100:
     print("\tSURGE ({:n}%)\t\t\t\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format((sum(usd_sum_surge)*100)/sum(usd_sum),sum(usd_sum_surge),sum(held_sum_surge),sum(paid_sum_surge)))
 
 if sum(disposed) > 0:
-    print("\tHELD AMOUNT RETURNED\t{:8.2f} USD\t\t\t\t\t\t{:8.4f} USD".format(-1*sum(disposed),sum(disposed)))
-    print("\tAFTER RETURN\t\t{:8.2f} USD\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format(sum(held_so_far)-(sum(disp_so_far)+sum(disposed)),sum(usd_sum_surge),sum(held_sum_surge),sum(paid_sum_surge)+sum(disposed)))
+    print("\tHELD AMOUNT RETURNED\t   {:8.2f} USD\t\t\t\t\t\t{:8.4f} USD".format(-1*sum(disposed),sum(disposed)))
+    print("\tAFTER RETURN\t\t   {:8.2f} USD\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format(sum(held_so_far)-(sum(disp_so_far)+sum(disposed)),sum(usd_sum_surge),sum(held_sum_surge),sum(paid_sum_surge)+sum(disposed)))
