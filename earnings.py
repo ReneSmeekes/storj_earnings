@@ -52,7 +52,7 @@ if not os.path.isfile(dbPathR):
              + sys.argv[0] + ' "' + os.getcwd() + '"')
 
 dbPathH = os.path.join(dbPath,"heldamount.db")
-if not os.path.isfile(dbPathR):
+if not os.path.isfile(dbPathH):
 	sys.exit('ERROR: heldamount.db not found at: "' + dbPath + '" or "' + configPath 
              + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' 
              + sys.argv[0] + ' "' + os.getcwd() + '"')
