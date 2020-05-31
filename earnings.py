@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-version = "9.2.1"
+version = "9.2.2"
 
-#from calendar import monthrange
+from calendar import monthrange
 from datetime import datetime
 
 import os
@@ -272,8 +272,9 @@ paid_sum_surge = list()
 held_sum = list()
 held_sum_surge = list()
 
-hours_month = 730 #monthrange(mdate.year, mdate.month)[1] * 24 #Storj seems to use 730 instead of calculation
-month_passed = (datetime.utcnow() - date_from).total_seconds() / (hours_month*3600)
+hours_month = 730 #Storj seems to use 730 instead of calculation
+hours_this_month = monthrange(mdate.year, mdate.month)[1] * 24
+month_passed = (datetime.utcnow() - date_from).total_seconds() / (hours_this_month*3600)
 
 for data in con.execute(query):
     if len(data) < 12:
