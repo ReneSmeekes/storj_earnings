@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-version = "9.2.2"
+version = "9.3.0"
 
 from calendar import monthrange
 from datetime import datetime
@@ -138,6 +138,7 @@ query = """
     ,COALESCE(d.vet_count,0) vet_count
     ,COALESCE(d.uptime_score,0) uptime_score
     ,COALESCE(d.audit_score,0) audit_score
+    ,COALESCE(d.audit_suspension_score,0) audit_suspension_score
     ,COALESCE(d.joined_at, '') sat_start_dt
     ,COALESCE(f.surge_percent, 100) surge_percent
     ,COALESCE(g.held_so_far, 0) held_so_far
@@ -180,11 +181,13 @@ query = """
       ,CASE WHEN disqualified IS NOT NULL THEN 'Disqualified @ ' || datetime(disqualified)
             WHEN suspended IS NOT NULL THEN 'Suspended @ ' || datetime(suspended)
             WHEN audit_success_count < {audit_req} THEN 'Vetting '
+            WHEN audit_reputation_score < 0.98 OR audit_unknown_reputation_score < 0.98 THEN 'WARNING'
             ELSE 'OK' END AS rep_status
       ,date(joined_at) as joined_at
       ,MIN(audit_success_count, {audit_req}) AS vet_count
       ,CAST(uptime_reputation_score * 1000 as INT) AS uptime_score
-      ,CAST(audit_reputation_score * 1000 as INT) AS audit_score
+      ,100.0-((audit_reputation_score-0.6)/0.004) AS audit_score
+      ,100.0-((audit_unknown_reputation_score-0.6)/0.004) AS audit_suspension_score
       FROM r.reputation
     ) d
     ON x.satellite_id = d.satellite_id
@@ -255,6 +258,7 @@ rep_status = list()
 vet_count = list()
 uptime_score = list()
 audit_score = list()
+audit_suspension_score = list()
 
 sat_start_dt = list()
 month_nr = list()
@@ -299,28 +303,29 @@ for data in con.execute(query):
     usd_get_repair.append((10 / (1000.00**4)) * get_repair[-1])
     usd_bh.append((1.5 / (1000.00**4)) * (bh[-1] / hours_month))
     
-    surge_percent.append(data[13])
+    surge_percent.append(data[14])
 
     usd_sum.append(usd_get[-1] + usd_get_audit[-1] + usd_get_repair[-1] + usd_bh[-1])
     usd_sum_surge.append(((usd_get[-1] + usd_get_audit[-1] + usd_get_repair[-1] + usd_bh[-1]) * surge_percent[-1]) / 100)
     
     if data[8] == 'Vetting ':
-        rep_status.append(data[8] + '{:d}%'.format((100*int(data[9]))//int(audit_req)) )
+        rep_status.append('{:d}% Vetted'.format((100*int(data[9]))//int(audit_req)) )
     else:
         rep_status.append(data[8])
     uptime_score.append(int(data[10]))
-    audit_score.append(int(data[11]))
+    audit_score.append(data[11])
+    audit_suspension_score.append(data[12])
     
-    sat_start_dt.append(data[12])
+    sat_start_dt.append(data[13])
     
-    held_so_far.append(data[14])
-    disp_so_far.append(data[15])
+    held_so_far.append(data[15])
+    disp_so_far.append(data[16])
     
-    disposed.append(data[16])
+    disposed.append(data[17])
     
-    month_nr.append(data[17])
+    month_nr.append(data[18])
 
-    pay_status.append(data[18])
+    pay_status.append(data[19])
 
     if month_nr[-1] >= 1 and month_nr[-1] <= 3:
         held_perc.append(.75)
@@ -375,26 +380,26 @@ for i in range(len(usd_sum)):
     print("{}{}\t{:5.0f}\t{} {:8.2f} USD\t{:8.4f} USD\t{:4.0f}%\t {:8.4f} USD\t{:8.4f} USD".format(nl,sat_name[i],month_nr[i],sat_start_dt[i],held_so_far[i]-disp_so_far[i],usd_sum[i],held_perc[i]*100,held_sum[i],paid_sum[i]))
     nl = '\n'
     if len(sys.argv) < 3:
-        print("\tStatus: {} (Audit score: {})".format(rep_status[i],audit_score[i]))
+        print("    Status: {} >> Audit[{:.1f}% DQ|{:.1f}% Susp]".format(rep_status[i],audit_score[i],audit_suspension_score[i]))
         nl = ''
     if surge_percent[i] > 100:
-        print("\tSURGE ({:.0f}%)\t\t\t\t{:8.4f} USD\t{:4.0f}%\t {:8.4f} USD\t{:8.4f} USD".format(surge_percent[i],usd_sum_surge[i],held_perc[i]*100,held_sum_surge[i],paid_sum_surge[i]))
+        print("    SURGE ({:.0f}%)\t\t\t\t{:8.4f} USD\t{:4.0f}%\t {:8.4f} USD\t{:8.4f} USD".format(surge_percent[i],usd_sum_surge[i],held_perc[i]*100,held_sum_surge[i],paid_sum_surge[i]))
         nl = ''
     
     if disposed[i] > 0:
-        print("\tHELD AMOUNT RETURNED\t   {:8.2f} USD\t\t\t\t\t\t{:8.4f} USD".format(-1*disposed[i],disposed[i]))
-        print("\tAFTER RETURN\t\t   {:8.2f} USD\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format(held_so_far[i]-(disp_so_far[i]+disposed[i]),usd_sum_surge[i],held_sum_surge[i],paid_sum_surge[i]+disposed[i]))
+        print("    HELD AMOUNT RETURNED\t   {:8.2f} USD\t\t\t\t\t\t{:8.4f} USD".format(-1*disposed[i],disposed[i]))
+        print("    AFTER RETURN\t\t   {:8.2f} USD\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format(held_so_far[i]-(disp_so_far[i]+disposed[i]),usd_sum_surge[i],held_sum_surge[i],paid_sum_surge[i]+disposed[i]))
         nl = ''
 
     if len(pay_status[i]) > 0:
-        print("\tPAYOUT NOTES: {}".format(pay_status[i]))
+        print("    PAYOUT NOTES: {}".format(pay_status[i]))
         nl = ''
     
 print("_____________________________________________________________________________________________________+")
 print("TOTAL\t\t\t\t   {:8.2f} USD\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format(sum(held_so_far)-sum(disp_so_far),sum(usd_sum),sum(held_sum),sum(paid_sum)))
 if len(surge_percent) > 0 and sum(surge_percent)/len(surge_percent) > 100:
-    print("\tSURGE ({:.0f}%)\t\t\t\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format((sum(usd_sum_surge)*100)/sum(usd_sum),sum(usd_sum_surge),sum(held_sum_surge),sum(paid_sum_surge)))
+    print("    SURGE ({:.0f}%)\t\t\t\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format((sum(usd_sum_surge)*100)/sum(usd_sum),sum(usd_sum_surge),sum(held_sum_surge),sum(paid_sum_surge)))
 
 if sum(disposed) > 0:
-    print("\tHELD AMOUNT RETURNED\t   {:8.2f} USD\t\t\t\t\t\t{:8.4f} USD".format(-1*sum(disposed),sum(disposed)))
-    print("\tAFTER RETURN\t\t   {:8.2f} USD\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format(sum(held_so_far)-(sum(disp_so_far)+sum(disposed)),sum(usd_sum_surge),sum(held_sum_surge),sum(paid_sum_surge)+sum(disposed)))
+    print("    HELD AMOUNT RETURNED\t   {:8.2f} USD\t\t\t\t\t\t{:8.4f} USD".format(-1*sum(disposed),sum(disposed)))
+    print("    AFTER RETURN\t\t   {:8.2f} USD\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format(sum(held_so_far)-(sum(disp_so_far)+sum(disposed)),sum(usd_sum_surge),sum(held_sum_surge),sum(paid_sum_surge)+sum(disposed)))
