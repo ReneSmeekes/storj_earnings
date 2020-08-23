@@ -3,36 +3,36 @@ Earnings calculation script for Storj V3 storagenodes
 
 Example:
 ```
-May 2020 (Version: 9.2.1)                                               [snapshot: 2020-05-28 18:29:31Z]
+August 2020 (Version: 9.3.1)                                            [snapshot: 2020-08-23 08:12:15Z]
                         TYPE            PRICE                   DISK       BANDWIDTH            PAYOUT
-Upload                  Ingress         -not paid-                           3.60 TB
-Upload Repair           Ingress         -not paid-                         104.31 GB
-Download                Egress          20   USD / TB                      987.81 GB         19.76 USD
-Download Repair         Egress          10   USD / TB                      276.76 GB          2.77 USD
-Download Audit          Egress          10   USD / TB                       22.15 MB          0.00 USD
-Disk Current            Storage         -not paid-          11.87 TB
-Disk Average Month      Storage         1.50 USD / TBm       9.99 TBm                        14.99 USD
-Disk Usage              Storage         -not paid-           7.29 PBh
+Upload                  Ingress         -not paid-                         134.51 GB
+Upload Repair           Ingress         -not paid-                         164.83 GB
+Download                Egress          20   USD / TB                        1.38 TB         27.60 USD
+Download Repair         Egress          10   USD / TB                      885.27 GB          8.85 USD
+Download Audit          Egress          10   USD / TB                       12.16 MB          0.00 USD
+Disk Current            Storage         -not paid-          12.37 TB
+Disk Average Month      Storage         1.50 USD / TBm       8.77 TBm                        13.15 USD
+Disk Usage              Storage         -not paid-           6.31 PBh
 _______________________________________________________________________________________________________+
-Total                                                        9.99 TBm        4.97 TB         37.51 USD
-Estimated total by end of month                             10.94 TBm        5.44 TB         41.09 USD
+Total                                                        8.77 TBm        2.56 TB         49.61 USD
+Estimated total by end of month                             12.16 TBm        3.56 TB         68.83 USD
 
 Payout and held amount by satellite:
 SATELLITE       MONTH   JOINED       HELD TOTAL       EARNED    HELD%            HELD           PAID
-us-central-1       16   2019-02-28     2.67 USD   1.7566 USD       0%      0.0000 USD     1.7566 USD
-        Status: OK (Audit score: 1000)
-europe-west-1      13   2019-05-31    41.63 USD   4.3264 USD       0%      0.0000 USD     4.3264 USD
-        Status: OK (Audit score: 1000)
-europe-north-1      2   2020-04-18     0.01 USD   4.7772 USD      75%      3.5829 USD     1.1943 USD
-        Status: OK (Audit score: 1000)
-asia-east-1        12   2019-06-10     0.69 USD   1.9635 USD       0%      0.0000 USD     1.9635 USD
-        Status: OK (Audit score: 1000)
-saltlake            4   2020-02-11    19.48 USD  12.8026 USD      50%      6.4013 USD     6.4013 USD
-        Status: OK (Audit score: 1000)
-stefan-benten      15   2019-03-03   187.51 USD  11.8863 USD       0%      0.0000 USD    11.8863 USD
-        Status: OK (Audit score: 1000)
+us-central-1       19   2019-02-28     1.33 USD   2.4758 USD       0%      0.0000 USD     2.4758 USD
+    Status: OK >> Audit[0.0% DQ|0.0% Susp]
+europe-west-1      16   2019-05-31    41.63 USD   4.9130 USD       0%      0.0000 USD     4.9130 USD
+    Status: OK >> Audit[0.0% DQ|0.0% Susp]
+europe-north-1      5   2020-04-18    16.70 USD  13.6719 USD      50%      6.8359 USD     6.8359 USD
+    Status: OK >> Audit[0.0% DQ|0.0% Susp]
+asia-east-1        15   2019-06-10     0.69 USD   2.5012 USD       0%      0.0000 USD     2.5012 USD
+    Status: OK >> Audit[0.0% DQ|0.0% Susp]
+saltlake            7   2020-02-11    46.46 USD  25.9605 USD      25%      6.4901 USD    19.4704 USD
+    Status: OK >> Audit[0.0% DQ|0.0% Susp]
+stefan-benten      18   2019-03-03    93.75 USD   0.0857 USD       0%      0.0000 USD     0.0857 USD
+    Status: OK >> Audit[0.0% DQ|0.0% Susp]
 _____________________________________________________________________________________________________+
-TOTAL                                251.98 USD  37.5126 USD               9.9842 USD    27.5284 USD
+TOTAL                                200.56 USD  49.6080 USD              13.3261 USD    36.2820 USD
 ```
 
 ## Prerequisites
