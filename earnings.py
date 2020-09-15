@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-version = "9.3.1"
+version = "9.4.0"
 
 from calendar import monthrange
 from datetime import datetime
@@ -178,14 +178,17 @@ query = """
     LEFT JOIN (
       SELECT
       satellite_id
-      ,CASE WHEN disqualified IS NOT NULL THEN 'Disqualified @ ' || datetime(disqualified)
-            WHEN suspended IS NOT NULL THEN 'Suspended @ ' || datetime(suspended)
+      ,CASE WHEN disqualified_at IS NOT NULL THEN 'Audit disqualification @ ' || datetime(disqualified_at)
+            WHEN suspended_at IS NOT NULL THEN 'WARNING: Audit suspension @ ' || datetime(suspended_at)
+            WHEN offline_suspended_at IS NOT NULL THEN 'WARNING: Uptime suspension @ ' || datetime(offline_suspended_at)
+            WHEN offline_under_review_at IS NOT NULL THEN 'WARNING: Uptime under review @ ' || datetime(offline_under_review_at)
             WHEN audit_success_count < {audit_req} THEN 'Vetting '
-            WHEN audit_reputation_score < 0.98 OR audit_unknown_reputation_score < 0.98 THEN 'WARNING'
+            WHEN audit_reputation_score < 0.98 OR audit_unknown_reputation_score < 0.98 THEN 'WARNING: Audits failing'
+            WHEN online_score < 0.98 THEN 'WARNING: Uptime low'
             ELSE 'OK' END AS rep_status
       ,date(joined_at) as joined_at
       ,MIN(audit_success_count, {audit_req}) AS vet_count
-      ,CAST(uptime_reputation_score * 1000 as INT) AS uptime_score
+      ,100.0*online_score AS uptime_score
       ,100.0-((audit_reputation_score-0.6)/0.004) AS audit_score
       ,100.0-((audit_unknown_reputation_score-0.6)/0.004) AS audit_suspension_score
       FROM r.reputation
@@ -373,22 +376,22 @@ elif len(surge_percent) > 0 and sum(surge_percent)/len(surge_percent) > 100:
 
 print("\033[4m\nPayout and held amount by satellite:\033[0m")
 
-print("SATELLITE\tMONTH\tJOINED\t     HELD TOTAL\t      EARNED\tHELD%\t\t HELD\t        PAID")
+print("SATELLITE\tJOINED\t   MONTH HELD%\t  HELD TOTAL\t      EARNED\t        HELD\t        PAID")
 
 nl = ''
 for i in range(len(usd_sum)):
-    print("{}{}\t{:5.0f}\t{} {:8.2f} USD\t{:8.4f} USD\t{:4.0f}%\t {:8.4f} USD\t{:8.4f} USD".format(nl,sat_name[i],month_nr[i],sat_start_dt[i],held_so_far[i]-disp_so_far[i],usd_sum[i],held_perc[i]*100,held_sum[i],paid_sum[i]))
+    print("{}{}\t{} {:5.0f} {:4.0f}%\t{:8.2f} USD\t{:8.4f} USD\t{:8.4f} USD\t{:8.4f} USD".format(nl,sat_name[i],sat_start_dt[i],month_nr[i],held_perc[i]*100,held_so_far[i]-disp_so_far[i],usd_sum[i],held_sum[i],paid_sum[i]))
     nl = '\n'
     if len(sys.argv) < 3:
-        print("    Status: {} >> Audit[{:.1f}% DQ|{:.1f}% Susp]".format(rep_status[i],audit_score[i],audit_suspension_score[i]))
+        print("    Status: {} >Audit[{:.1f}% DQ|{:.1f}% Susp] >Up[{:.1f}%]".format(rep_status[i],audit_score[i],audit_suspension_score[i],uptime_score[i]))
         nl = ''
     if surge_percent[i] > 100:
-        print("    SURGE ({:.0f}%)\t\t\t\t{:8.4f} USD\t{:4.0f}%\t {:8.4f} USD\t{:8.4f} USD".format(surge_percent[i],usd_sum_surge[i],held_perc[i]*100,held_sum_surge[i],paid_sum_surge[i]))
+        print("    SURGE ({:.0f}%)\t\t {:4.0f}%\t\t\t{:8.4f} USD\t{:8.4f} USD\t{:8.4f} USD".format(surge_percent[i],held_perc[i]*100,usd_sum_surge[i],held_sum_surge[i],paid_sum_surge[i]))
         nl = ''
     
     if disposed[i] > 0:
-        print("    HELD AMOUNT RETURNED\t   {:8.2f} USD\t\t\t\t\t\t{:8.4f} USD".format(-1*disposed[i],disposed[i]))
-        print("    AFTER RETURN\t\t   {:8.2f} USD\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format(held_so_far[i]-(disp_so_far[i]+disposed[i]),usd_sum_surge[i],held_sum_surge[i],paid_sum_surge[i]+disposed[i]))
+        print("    HELD AMOUNT RETURNED\t\t{:8.2f} USD\t\t\t\t\t{:8.4f} USD".format(-1*disposed[i],disposed[i]))
+        print("    AFTER RETURN\t\t\t{:8.2f} USD\t{:8.4f} USD\t{:8.4f} USD\t{:8.4f} USD".format(held_so_far[i]-(disp_so_far[i]+disposed[i]),usd_sum_surge[i],held_sum_surge[i],paid_sum_surge[i]+disposed[i]))
         nl = ''
 
     if len(pay_status[i]) > 0:
@@ -396,10 +399,10 @@ for i in range(len(usd_sum)):
         nl = ''
     
 print("_____________________________________________________________________________________________________+")
-print("TOTAL\t\t\t\t   {:8.2f} USD\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format(sum(held_so_far)-sum(disp_so_far),sum(usd_sum),sum(held_sum),sum(paid_sum)))
+print("TOTAL\t\t\t\t\t{:8.2f} USD\t{:8.4f} USD\t{:8.4f} USD\t{:8.4f} USD".format(sum(held_so_far)-sum(disp_so_far),sum(usd_sum),sum(held_sum),sum(paid_sum)))
 if len(surge_percent) > 0 and sum(surge_percent)/len(surge_percent) > 100:
-    print("    SURGE ({:.0f}%)\t\t\t\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format((sum(usd_sum_surge)*100)/sum(usd_sum),sum(usd_sum_surge),sum(held_sum_surge),sum(paid_sum_surge)))
+    print("    SURGE ({:.0f}%)\t\t\t\t\t{:8.4f} USD\t{:8.4f} USD\t{:8.4f} USD".format((sum(usd_sum_surge)*100)/sum(usd_sum),sum(usd_sum_surge),sum(held_sum_surge),sum(paid_sum_surge)))
 
 if sum(disposed) > 0:
-    print("    HELD AMOUNT RETURNED\t   {:8.2f} USD\t\t\t\t\t\t{:8.4f} USD".format(-1*sum(disposed),sum(disposed)))
-    print("    AFTER RETURN\t\t   {:8.2f} USD\t{:8.4f} USD\t\t {:8.4f} USD\t{:8.4f} USD".format(sum(held_so_far)-(sum(disp_so_far)+sum(disposed)),sum(usd_sum_surge),sum(held_sum_surge),sum(paid_sum_surge)+sum(disposed)))
+    print("    HELD AMOUNT RETURNED\t\t{:8.2f} USD\t\t\t\t\t{:8.4f} USD".format(-1*sum(disposed),sum(disposed)))
+    print("    AFTER RETURN\t\t\t{:8.2f} USD\t{:8.4f} USD\t{:8.4f} USD\t{:8.4f} USD".format(sum(held_so_far)-(sum(disp_so_far)+sum(disposed)),sum(usd_sum_surge),sum(held_sum_surge),sum(paid_sum_surge)+sum(disposed)))
