@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-version = "9.4.0"
+version = "9.4.1"
 
 from calendar import monthrange
 from datetime import datetime
@@ -315,7 +315,7 @@ for data in con.execute(query):
         rep_status.append('{:d}% Vetted'.format((100*int(data[9]))//int(audit_req)) )
     else:
         rep_status.append(data[8])
-    uptime_score.append(int(data[10]))
+    uptime_score.append(data[10])
     audit_score.append(data[11])
     audit_suspension_score.append(data[12])
     
@@ -383,7 +383,7 @@ for i in range(len(usd_sum)):
     print("{}{}\t{} {:5.0f} {:4.0f}%\t{:8.2f} USD\t{:8.4f} USD\t{:8.4f} USD\t{:8.4f} USD".format(nl,sat_name[i],sat_start_dt[i],month_nr[i],held_perc[i]*100,held_so_far[i]-disp_so_far[i],usd_sum[i],held_sum[i],paid_sum[i]))
     nl = '\n'
     if len(sys.argv) < 3:
-        print("    Status: {} >Audit[{:.1f}% DQ|{:.1f}% Susp] >Up[{:.1f}%]".format(rep_status[i],audit_score[i],audit_suspension_score[i],uptime_score[i]))
+        print("    Status {} >Audit[{:.1f}% DQ|{:.1f}% Susp] >Up[{:.2f}%]".format(rep_status[i],audit_score[i],audit_suspension_score[i],uptime_score[i]))
         nl = ''
     if surge_percent[i] > 100:
         print("    SURGE ({:.0f}%)\t\t {:4.0f}%\t\t\t{:8.4f} USD\t{:8.4f} USD\t{:8.4f} USD".format(surge_percent[i],held_perc[i]*100,usd_sum_surge[i],held_sum_surge[i],paid_sum_surge[i]))
