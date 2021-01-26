@@ -3,36 +3,37 @@ Earnings calculation script for Storj V3 storagenodes
 
 Example:
 ```
-August 2020 (Version: 9.3.1)                                            [snapshot: 2020-08-23 08:12:15Z]
-                        TYPE            PRICE                   DISK       BANDWIDTH            PAYOUT
-Upload                  Ingress         -not paid-                         134.51 GB
-Upload Repair           Ingress         -not paid-                         164.83 GB
-Download                Egress          20   USD / TB                        1.38 TB         27.60 USD
-Download Repair         Egress          10   USD / TB                      885.27 GB          8.85 USD
-Download Audit          Egress          10   USD / TB                       12.16 MB          0.00 USD
-Disk Current            Storage         -not paid-          12.37 TB
-Disk Average Month      Storage         1.50 USD / TBm       8.77 TBm                        13.15 USD
-Disk Usage              Storage         -not paid-           6.31 PBh
-_______________________________________________________________________________________________________+
-Total                                                        8.77 TBm        2.56 TB         49.61 USD
-Estimated total by end of month                             12.16 TBm        3.56 TB         68.83 USD
+January 2021 (Version: 9.5.0)                                           [snapshot: 2021-01-26 13:55:08Z]
+                        TYPE            PRICE                   DISK       BANDWIDTH             PAYOUT
+Upload                  Ingress         -not paid-                         155.35 GB
+Upload Repair           Ingress         -not paid-                         120.98 GB
+Download                Egress          $ 20.00 / TB                         1.40 TB            $ 28.09
+Download Repair         Egress          $ 10.00 / TB                       288.14 GB            $  2.88
+Download Audit          Egress          $ 10.00 / TB                        13.30 MB            $  0.00
+Disk Current            Storage         -not paid-          14.08 TB
+Disk Average Month      Storage         $  1.50 / TBm       11.72 TBm                           $ 17.58
+Disk Usage              Storage         -not paid-           8.44 PBh
+________________________________________________________________________________________________________+
+Total                                                       11.72 TBm        1.97 TB            $ 48.55
+Estimated total by end of month                             14.21 TBm        2.39 TB            $ 58.84
 
 Payout and held amount by satellite:
-SATELLITE       MONTH   JOINED       HELD TOTAL       EARNED    HELD%            HELD           PAID
-us-central-1       19   2019-02-28     1.33 USD   2.4758 USD       0%      0.0000 USD     2.4758 USD
-    Status: OK >> Audit[0.0% DQ|0.0% Susp]
-europe-west-1      16   2019-05-31    41.63 USD   4.9130 USD       0%      0.0000 USD     4.9130 USD
-    Status: OK >> Audit[0.0% DQ|0.0% Susp]
-europe-north-1      5   2020-04-18    16.70 USD  13.6719 USD      50%      6.8359 USD     6.8359 USD
-    Status: OK >> Audit[0.0% DQ|0.0% Susp]
-asia-east-1        15   2019-06-10     0.69 USD   2.5012 USD       0%      0.0000 USD     2.5012 USD
-    Status: OK >> Audit[0.0% DQ|0.0% Susp]
-saltlake            7   2020-02-11    46.46 USD  25.9605 USD      25%      6.4901 USD    19.4704 USD
-    Status: OK >> Audit[0.0% DQ|0.0% Susp]
-stefan-benten      18   2019-03-03    93.75 USD   0.0857 USD       0%      0.0000 USD     0.0857 USD
-    Status: OK >> Audit[0.0% DQ|0.0% Susp]
-_____________________________________________________________________________________________________+
-TOTAL                                200.56 USD  49.6080 USD              13.3261 USD    36.2820 USD
+                        NODE AGE         HELD AMOUNT            REPUTATION                 PAYOUT THIS MONTH
+SATELLITE          Joined     Month    Perc     Total       Disq   Susp   Down        Earned        Held        Paid
+us-central-1    |  2019-02-28    24  |   0%  $   1.33  |   0.00%  0.00%  0.00%  |  $  3.0475   $  0.0000   $  3.0475
+    Status: OK
+us2             |  2021-01-07     1  |  75%  $   0.00  |   0.00%  0.00%  0.00%  |  $  0.0000   $  0.0000   $  0.0000
+    Status: OK
+europe-west-1   |  2019-05-31    21  |   0%  $  20.82  |   0.00%  0.00%  0.01%  |  $  3.9514   $  0.0000   $  3.9514
+    Status: OK
+europe-north-1  |  2020-04-18    10  |   0%  $  47.78  |   0.00%  0.00%  0.01%  |  $ 14.3507   $  0.0000   $ 14.3507
+    Status: OK
+asia-east-1     |  2019-06-10    20  |   0%  $   0.34  |   0.00%  0.00%  0.00%  |  $  3.0551   $  0.0000   $  3.0551
+    Status: OK
+saltlake        |  2020-02-11    12  |   0%  $  69.74  |   0.00%  0.00%  0.03%  |  $ 24.1496   $  0.0000   $ 24.1496
+    Status: OK
+_____________________________________________________________________________________________________________________+
+TOTAL                                        $ 140.01                              $ 48.5544   $  0.0000   $ 48.5544
 ```
 
 ## Prerequisites
