@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-version = "9.5.0"
+version = "10.0.0"
 
 from calendar import monthrange
 from datetime import datetime
@@ -145,7 +145,14 @@ query = """
     ,COALESCE(f.surge_percent, 100) surge_percent
     ,COALESCE(g.held_so_far, 0) held_so_far
     ,COALESCE(g.disp_so_far, 0) disp_so_far
+    ,COALESCE(g.postponed_so_far, 0) postponed_so_far
     ,COALESCE(f.disposed, 0) disposed
+    ,COALESCE(f.payout, 0) payout
+    ,COALESCE(f.paid_out, 0) paid_out
+    ,CASE WHEN f.payout > f.paid_out THEN f.payout - f.paid_out ELSE 0 END postponed
+    ,CASE WHEN f.paid_out > f.payout THEN f.paid_out - f.payout ELSE 0 END paid_prev_month
+    ,COALESCE(h.receipt, '') receipt
+    ,COALESCE(h.receipt_amount, 0) receipt_amount
     ,1+strftime('%m', date('{date_from}')) - strftime('%m', date(d.joined_at)) +
      (strftime('%Y', date('{date_from}')) - strftime('%Y', date(d.joined_at))) * 12 AS month_nr
     ,COALESCE(SUBSTR(f.pay_stat, 1, LENGTH(f.pay_stat)-2), '') AS pay_status
@@ -188,7 +195,7 @@ query = """
             WHEN audit_reputation_score < 0.98 OR audit_unknown_reputation_score < 0.98 THEN 'WARNING: Audits failing'
             WHEN online_score < 0.98 THEN 'WARNING: Downtime high'
             ELSE 'OK' END AS rep_status
-      ,date(joined_at) as joined_at
+      ,date(joined_at) AS joined_at
       ,MIN(audit_success_count, {audit_req}) AS vet_count
       ,100.0*online_score AS uptime_score
       ,100.0-((audit_reputation_score-0.6)/0.004) AS audit_score
@@ -205,6 +212,8 @@ query = """
       ||CASE WHEN INSTR(codes, 'T') > 0 THEN 'Tax form 1099 missing, ' ELSE '' END AS pay_stat
       ,CASE WHEN surge_percent = 0 THEN 100 ELSE surge_percent END AS surge_percent
       ,disposed/1000000.0 disposed
+      ,paid/1000000.0 payout
+      ,distributed/1000000.0 paid_out
       FROM h.paystubs
       WHERE period = '{year_month_char}'
     ) f
@@ -216,11 +225,21 @@ query = """
       ,MAX(period) last_period
       ,SUM(held)/1000000.0 held_so_far
       ,SUM(disposed)/1000000.0 disp_so_far
+      ,(SUM(paid)-SUM(distributed))/1000000.0 postponed_so_far
       FROM h.paystubs
       WHERE period < '{year_month_char}'
       GROUP BY satellite_id
     ) g
     ON x.satellite_id = g.satellite_id
+    LEFT JOIN (
+      SELECT
+      satellite_id
+      , SUBSTR(receipt,5) receipt
+      , amount/1000000.0 AS receipt_amount
+      FROM h.payments
+      WHERE period = '{year_month_char}'
+    ) h
+    ON x.satellite_id = h.satellite_id
     ORDER BY x.satellite_num;
 """.format(satellites=satellites, time_window=time_window, audit_req=audit_req, year_month_char=year_month_char, 
            year_month_prev_char=year_month_prev_char, date_from=date_from.strftime("%Y-%m-%d"))
@@ -272,8 +291,16 @@ pay_status = list()
 
 held_so_far = list()
 disp_so_far = list()
+postponed_so_far = list()
 
 disposed = list()
+payout = list()
+paid_out = list()
+postponed = list()
+paid_prev_month = list()
+
+receipt = list()
+receipt_amount = list()
 
 held_perc = list()
 paid_sum = list()
@@ -286,8 +313,9 @@ hours_this_month = monthrange(mdate.year, mdate.month)[1] * 24
 month_passed = (datetime.utcnow() - date_from).total_seconds() / (hours_this_month*3600)
 
 for data in con.execute(query):
-    if len(data) < 12:
-        sys.exit('ERROR SQLite3: ' + data)
+    if len(data) < 25:
+        print(data)
+        sys.exit('ERROR SQLite3')
 
     #by satellite
     sat_name.append(data[0])
@@ -325,12 +353,20 @@ for data in con.execute(query):
     
     held_so_far.append(data[15])
     disp_so_far.append(data[16])
+    postponed_so_far.append(data[17])
     
-    disposed.append(data[17])
-    
-    month_nr.append(data[18])
+    disposed.append(data[18])
+    payout.append(data[19])
+    paid_out.append(data[20])
+    postponed.append(data[21])
+    paid_prev_month.append(data[22])
 
-    pay_status.append(data[19])
+    receipt.append(data[23])
+    receipt_amount.append(data[24])
+    
+    month_nr.append(data[25])
+
+    pay_status.append(data[26])
 
     if month_nr[-1] >= 1 and month_nr[-1] <= 3:
         held_perc.append(.75)
@@ -379,7 +415,7 @@ elif len(surge_percent) > 0 and sum(surge_percent)/len(surge_percent) > 100:
 print("\033[4m\nPayout and held amount by satellite:\033[0m")
 
 print("                        NODE AGE         HELD AMOUNT            REPUTATION                 PAYOUT THIS MONTH")
-print("SATELLITE          Joined     Month    Perc     Total       Disq   Susp   Down        Earned        Held        Paid")
+print("SATELLITE          Joined     Month    Perc     Total       Disq   Susp   Down        Earned        Held      Payout")
 
 nl = ''
 
@@ -393,24 +429,63 @@ for i in range(len(usd_sum)):
     if len(sys.argv) < 3:
         print("    Status: {}".format(rep_status[i]))
         nl = ''
-    if surge_percent[i] > 100:
-        print("    SURGE ({:3.0f}%)\t\t\t\t\t\t\t\t   ${:8.4f}   ${:8.4f}   ${:8.4f}".format(surge_percent[i],usd_sum_surge[i],held_sum_surge[i],paid_sum_surge[i]))
-        nl = ''
-    
-    if disposed[i] > 0:
-        print("    HELD AMOUNT RETURNED\t\t     ${:7.2f}\t\t\t\t\t\t\t   ${:8.4f}".format(-1*disposed[i],disposed[i]))
-        print("    AFTER RETURN\t\t\t     ${:7.2f}\t\t\t\t\t\t\t   ${:8.4f}".format(held_so_far[i]-(disp_so_far[i]+disposed[i]),paid_sum_surge[i]+disposed[i]))
-        nl = ''
 
     if len(pay_status[i]) > 0:
         print("    PAYOUT NOTES: {}".format(pay_status[i]))
-        nl = ''
+
+    if surge_percent[i] > 100:
+        print("    SURGE ({:3.0f}%)\t\t\t\t\t\t\t\t   ${:8.4f}   ${:8.4f}   ${:8.4f}".format(surge_percent[i],usd_sum_surge[i],held_sum_surge[i],paid_sum_surge[i]))
     
+    if disposed[i] > 0:
+        print("    HELD AMOUNT RETURNED\t\t   - ${:7.2f}\t\t\t\t\t\t\t + ${:8.4f}".format(disposed[i],disposed[i]))
+        print("    AFTER RETURN\t\t\t     ${:7.2f}\t\t\t\t\t\t\t   ${:8.4f}".format(held_so_far[i]-(disp_so_far[i]+disposed[i]),paid_sum_surge[i]+disposed[i]))
+
+    if sat_name[i] == "stefan-benten":
+        print("    CAUTION: stefan-benten never reported paid out amounts, all payouts are incorrectly reported as postponed!")
+
+    if payout[i] > 0:
+        print("\t\t\t\t\t\t\t\t\t\t\t\tDIFFERENCE ${:8.4f}".format(payout[i]-(paid_sum_surge[i]+disposed[i])))
+
+    if paid_out[i] > 0:
+        print("\t\t\t\t\t\t\t\t\t\t\t\t      PAID ${:8.4f}".format(paid_out[i]-paid_prev_month[i]))
+    
+    if paid_prev_month[i] > 0:
+        print("\t\t\t\t\t\t\t\t\t\t      PAID PREVIOUS MONTHS ${:8.4f}".format(paid_prev_month[i]))
+        print("\t\t\t\t\t\t\t\t\t\t\t\tPAID TOTAL ${:8.4f}".format(paid_out[i]))
+
+    if postponed[i] > 0:
+        print("\t\t\t\t\t\t\t\t\t\t\t  PAYOUT POSTPONED ${:8.4f}".format(postponed[i]))
+
+    if receipt[i] != "":
+        print("    Transaction(${:6.2f}): https://etherscan.io/tx/{}".format(receipt_amount[i], receipt[i]))
+
+   
 print("_____________________________________________________________________________________________________________________+")
 print("TOTAL\t\t\t\t\t     ${:7.2f}                              ${:8.4f}   ${:8.4f}   ${:8.4f}".format(sum(held_so_far)-sum(disp_so_far),sum(usd_sum),sum(held_sum),sum(paid_sum)))
 if len(surge_percent) > 0 and sum(surge_percent)/len(surge_percent) > 100:
     print("    SURGE ({:3.0f}%)\t\t\t\t\t\t\t\t   ${:8.4f}   ${:8.4f}   ${:8.4f}".format((sum(usd_sum_surge)*100)/sum(usd_sum),sum(usd_sum_surge),sum(held_sum_surge),sum(paid_sum_surge)))
 
 if sum(disposed) > 0:
-    print("    HELD AMOUNT RETURNED\t\t     ${:7.2f}\t\t\t\t\t\t\t   ${:8.4f}".format(-1*sum(disposed),sum(disposed)))
+    print("    HELD AMOUNT RETURNED\t\t   - ${:7.2f}\t\t\t\t\t\t\t + ${:8.4f}".format(sum(disposed),sum(disposed)))
     print("    AFTER RETURN\t\t\t     ${:7.2f}\t\t\t\t\t\t\t   ${:8.4f}".format(sum(held_so_far)-(sum(disp_so_far)+sum(disposed)),sum(paid_sum_surge)+sum(disposed)))
+
+if year_month < 202010:
+    print("\n    CAUTION: stefan-benten never reported paid out amounts, all payouts are incorrectly reported as postponed!")
+
+if sum(payout) > 0:
+    print("\n\t\t\t\t\t\t\t\t\t\t\t PAYOUT DIFFERENCE ${:8.4f}".format(sum(payout)-(sum(paid_sum_surge)+sum(disposed))))
+if sum(paid_out) > 0 and sum(postponed) > 0:
+    print("\t\t\t\t\t\t\t\t\t\t   TOTAL PAYOUT THIS MONTH ${:8.4f}".format(sum(payout)))
+if sum(paid_out) > 0:
+    print("\t\t\t\t\t\t\t\t\t\t       PAID OUT THIS MONTH ${:8.4f}".format(sum(paid_out)-sum(paid_prev_month)))
+if sum(postponed) > 0:
+    print("\t\t\t\t\t\t\t\t\t       POSTPONED PAYOUT THIS MONTH ${:8.4f}".format(sum(postponed)))
+
+if sum(paid_prev_month) > 0:
+    print("\n\t\t\t\t\t\t\t\t\t\t      PAID PREVIOUS MONTHS ${:8.4f}".format(sum(paid_prev_month)))
+    print("\t\t\t\t\t\t\t\t\t\t\t\tPAID TOTAL ${:8.4f}".format(sum(paid_out)))
+
+if sum(postponed_so_far) > 0:
+    print("\n\t\t\t\t\t\t\t\t\t  POSTPONED PAYOUT PREVIOUS MONTHS ${:8.4f}".format(sum(postponed_so_far)))
+    if sum(payout)-sum(paid_out) > 0:
+        print("\t\t\t\t\t\t\t\t\t            POSTPONED PAYOUT TOTAL ${:8.4f}".format(sum(postponed_so_far)+sum(postponed)))
