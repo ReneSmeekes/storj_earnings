@@ -1,5 +1,6 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-version = "10.0.0"
+version = "10.1.0"
 
 from calendar import monthrange
 from datetime import datetime
@@ -234,7 +235,10 @@ query = """
     LEFT JOIN (
       SELECT
       satellite_id
-      , SUBSTR(receipt,5) receipt
+      , CASE 
+          WHEN SUBSTR(receipt, 1, 4) = 'eth:' THEN 'https://etherscan.io/tx/'||SUBSTR(receipt, 5)
+          WHEN SUBSTR(receipt, 1, 7) = 'zksync:' THEN 'https://zkscan.io/explorer/transactions/'||SUBSTR(receipt, 8)
+        END receipt
       , amount/1000000.0 AS receipt_amount
       FROM h.payments
       WHERE period = '{year_month_char}'
@@ -440,9 +444,6 @@ for i in range(len(usd_sum)):
         print("    HELD AMOUNT RETURNED\t\t   - ${:7.2f}\t\t\t\t\t\t\t + ${:8.4f}".format(disposed[i],disposed[i]))
         print("    AFTER RETURN\t\t\t     ${:7.2f}\t\t\t\t\t\t\t   ${:8.4f}".format(held_so_far[i]-(disp_so_far[i]+disposed[i]),paid_sum_surge[i]+disposed[i]))
 
-    if sat_name[i] == "stefan-benten":
-        print("    CAUTION: stefan-benten never reported paid out amounts, all payouts are incorrectly reported as postponed!")
-
     if payout[i] > 0:
         print("\t\t\t\t\t\t\t\t\t\t\t\tDIFFERENCE ${:8.4f}".format(payout[i]-(paid_sum_surge[i]+disposed[i])))
 
@@ -457,7 +458,7 @@ for i in range(len(usd_sum)):
         print("\t\t\t\t\t\t\t\t\t\t\t  PAYOUT POSTPONED ${:8.4f}".format(postponed[i]))
 
     if receipt[i] != "":
-        print("    Transaction(${:6.2f}): https://etherscan.io/tx/{}".format(receipt_amount[i], receipt[i]))
+        print("    Transaction(${:6.2f}): {}".format(receipt_amount[i], receipt[i]))
 
    
 print("_____________________________________________________________________________________________________________________+")
@@ -468,9 +469,6 @@ if len(surge_percent) > 0 and sum(surge_percent)/len(surge_percent) > 100:
 if sum(disposed) > 0:
     print("    HELD AMOUNT RETURNED\t\t   - ${:7.2f}\t\t\t\t\t\t\t + ${:8.4f}".format(sum(disposed),sum(disposed)))
     print("    AFTER RETURN\t\t\t     ${:7.2f}\t\t\t\t\t\t\t   ${:8.4f}".format(sum(held_so_far)-(sum(disp_so_far)+sum(disposed)),sum(paid_sum_surge)+sum(disposed)))
-
-if year_month < 202010:
-    print("\n    CAUTION: stefan-benten never reported paid out amounts, all payouts are incorrectly reported as postponed!")
 
 if sum(payout) > 0:
     print("\n\t\t\t\t\t\t\t\t\t\t\t PAYOUT DIFFERENCE ${:8.4f}".format(sum(payout)-(sum(paid_sum_surge)+sum(disposed))))
