@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-version = "10.1.0"
+version = "10.1.1"
 
 from calendar import monthrange
 from datetime import datetime
@@ -483,7 +483,7 @@ if sum(paid_prev_month) > 0:
     print("\n\t\t\t\t\t\t\t\t\t\t      PAID PREVIOUS MONTHS ${:8.4f}".format(sum(paid_prev_month)))
     print("\t\t\t\t\t\t\t\t\t\t\t\tPAID TOTAL ${:8.4f}".format(sum(paid_out)))
 
-if sum(postponed_so_far) > 0:
-    print("\n\t\t\t\t\t\t\t\t\t  POSTPONED PAYOUT PREVIOUS MONTHS ${:8.4f}".format(sum(postponed_so_far)))
+if sum(postponed_so_far)-sum(paid_prev_month) > 0:
+    print("\n\t\t\t\t\t\t\t\t\t  POSTPONED PAYOUT PREVIOUS MONTHS ${:8.4f}".format(sum(postponed_so_far)-sum(paid_prev_month)))
     if sum(payout)-sum(paid_out) > 0:
-        print("\t\t\t\t\t\t\t\t\t            POSTPONED PAYOUT TOTAL ${:8.4f}".format(sum(postponed_so_far)+sum(postponed)))
+        print("\t\t\t\t\t\t\t\t\t            POSTPONED PAYOUT TOTAL ${:8.4f}".format(sum(postponed_so_far)+sum(postponed)-sum(paid_prev_month)))
