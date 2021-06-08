@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-version = "10.1.2"
+version = "10.2.0"
 
 from calendar import monthrange
 from datetime import datetime
+from math import log
 
 import os
 import sys
@@ -346,7 +347,7 @@ for data in con.execute(query):
     usd_sum_surge.append(((usd_get[-1] + usd_get_audit[-1] + usd_get_repair[-1] + usd_bh[-1]) * surge_percent[-1]) / 100)
     
     if data[8] == 'Vetting ':
-        rep_status.append('{:d}% Vetted'.format((100*int(data[9]))//int(audit_req)) )
+        rep_status.append('{:d}% Vetting progress ({:2d} / {:d} Audits)'.format(int((100*log(float(data[9])+1))//log(float(audit_req)+1)), int(data[9]), int(audit_req)) )
     else:
         rep_status.append(data[8])
     uptime_score.append(data[10])
