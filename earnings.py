@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-version = "10.2.0"
+version = "10.2.1"
 
 from calendar import monthrange
 from datetime import datetime
@@ -414,7 +414,7 @@ else:
     print("Total\t\t\t\t\t\t\t{}m\t{}\t\t${:6.2f}".format(formatSize(sum(bh) / hours_month), formatSize(sum(bw_sum)), sum(usd_sum)))
 if len(sys.argv) < 3:
     print("Estimated total by end of month\t\t\t\t{}m\t{}\t\t${:6.2f}".format(formatSize((sum(bh) / hours_month)/month_passed), formatSize(sum(bw_sum)/month_passed), sum(usd_sum)/month_passed))
-elif len(surge_percent) > 0 and sum(surge_percent)/len(surge_percent) > 100:
+elif len(surge_percent) > 0 and sum(surge_percent)/len(surge_percent) > 100.00001:
     print("Total Surge ({:.0f}%)\t\t\t\t\t\t\t\t\t\t${:6.2f}".format((sum(usd_sum_surge)*100) / sum(usd_sum), sum(usd_sum_surge)))
 
 print("\033[4m\nPayout and held amount by satellite:\033[0m")
@@ -435,27 +435,27 @@ for i in range(len(usd_sum)):
         print("    Status: {}".format(rep_status[i]))
         nl = ''
 
-    if len(pay_status[i]) > 0:
+    if len(pay_status[i]) > 0.00001:
         print("    PAYOUT NOTES: {}".format(pay_status[i]))
 
-    if surge_percent[i] > 100:
+    if surge_percent[i] > 100.00001:
         print("    SURGE ({:3.0f}%)\t\t\t\t\t\t\t\t   ${:8.4f}   ${:8.4f}   ${:8.4f}".format(surge_percent[i],usd_sum_surge[i],held_sum_surge[i],paid_sum_surge[i]))
     
-    if disposed[i] > 0:
+    if disposed[i] > 0.00001:
         print("    HELD AMOUNT RETURNED\t\t   - ${:7.2f}\t\t\t\t\t\t\t + ${:8.4f}".format(disposed[i],disposed[i]))
         print("    AFTER RETURN\t\t\t     ${:7.2f}\t\t\t\t\t\t\t   ${:8.4f}".format(held_so_far[i]-(disp_so_far[i]+disposed[i]),paid_sum_surge[i]+disposed[i]))
 
-    if payout[i] > 0:
+    if payout[i] > 0.00001:
         print("\t\t\t\t\t\t\t\t\t\t\t\tDIFFERENCE ${:8.4f}".format(payout[i]-(paid_sum_surge[i]+disposed[i])))
 
-    if paid_out[i] > 0:
+    if paid_out[i] > 0.00001:
         print("\t\t\t\t\t\t\t\t\t\t\t\t      PAID ${:8.4f}".format(paid_out[i]-paid_prev_month[i]))
     
-    if paid_prev_month[i] > 0:
+    if paid_prev_month[i] > 0.00001:
         print("\t\t\t\t\t\t\t\t\t\t      PAID PREVIOUS MONTHS ${:8.4f}".format(paid_prev_month[i]))
         print("\t\t\t\t\t\t\t\t\t\t\t\tPAID TOTAL ${:8.4f}".format(paid_out[i]))
 
-    if postponed[i] > 0:
+    if postponed[i] > 0.00001:
         print("\t\t\t\t\t\t\t\t\t\t\t  PAYOUT POSTPONED ${:8.4f}".format(postponed[i]))
 
     if receipt[i] != "":
@@ -464,27 +464,27 @@ for i in range(len(usd_sum)):
    
 print("_____________________________________________________________________________________________________________________+")
 print("TOTAL\t\t\t\t\t     ${:7.2f}                              ${:8.4f}   ${:8.4f}   ${:8.4f}".format(sum(held_so_far)-sum(disp_so_far),sum(usd_sum),sum(held_sum),sum(paid_sum)))
-if len(surge_percent) > 0 and sum(surge_percent)/len(surge_percent) > 100:
+if len(surge_percent) > 0.00001 and sum(surge_percent)/len(surge_percent) > 100.00001:
     print("    SURGE ({:3.0f}%)\t\t\t\t\t\t\t\t   ${:8.4f}   ${:8.4f}   ${:8.4f}".format((sum(usd_sum_surge)*100)/sum(usd_sum),sum(usd_sum_surge),sum(held_sum_surge),sum(paid_sum_surge)))
 
-if sum(disposed) > 0:
+if sum(disposed) > 0.00001:
     print("    HELD AMOUNT RETURNED\t\t   - ${:7.2f}\t\t\t\t\t\t\t + ${:8.4f}".format(sum(disposed),sum(disposed)))
     print("    AFTER RETURN\t\t\t     ${:7.2f}\t\t\t\t\t\t\t   ${:8.4f}".format(sum(held_so_far)-(sum(disp_so_far)+sum(disposed)),sum(paid_sum_surge)+sum(disposed)))
 
-if sum(payout) > 0:
+if sum(payout) > 0.00001:
     print("\n\t\t\t\t\t\t\t\t\t\t\t PAYOUT DIFFERENCE ${:8.4f}".format(sum(payout)-(sum(paid_sum_surge)+sum(disposed))))
-if sum(paid_out) > 0 and sum(postponed) > 0:
+if sum(paid_out) > 0.00001 and sum(postponed) > 0.00001:
     print("\t\t\t\t\t\t\t\t\t\t   TOTAL PAYOUT THIS MONTH ${:8.4f}".format(sum(payout)))
-if sum(paid_out) > 0:
+if sum(paid_out) > 0.00001:
     print("\t\t\t\t\t\t\t\t\t\t       PAID OUT THIS MONTH ${:8.4f}".format(sum(paid_out)-sum(paid_prev_month)))
-if sum(postponed) > 0:
+if sum(postponed) > 0.00001:
     print("\t\t\t\t\t\t\t\t\t       POSTPONED PAYOUT THIS MONTH ${:8.4f}".format(sum(postponed)))
 
-if sum(paid_prev_month) > 0:
+if sum(paid_prev_month) > 0.00001:
     print("\n\t\t\t\t\t\t\t\t\t\t      PAID PREVIOUS MONTHS ${:8.4f}".format(sum(paid_prev_month)))
     print("\t\t\t\t\t\t\t\t\t\t\t\tPAID TOTAL ${:8.4f}".format(sum(paid_out)))
 
-if sum(postponed_so_far)-sum(paid_prev_month) > 0:
+if sum(postponed_so_far)-sum(paid_prev_month) > 0.00001:
     print("\n\t\t\t\t\t\t\t\t\t  POSTPONED PAYOUT PREVIOUS MONTHS ${:8.4f}".format(sum(postponed_so_far)-sum(paid_prev_month)))
-    if sum(payout)-sum(paid_out) > 0:
+    if sum(payout)-sum(paid_out) > 0.00001:
         print("\t\t\t\t\t\t\t\t\t            POSTPONED PAYOUT TOTAL ${:8.4f}".format(sum(postponed_so_far)+sum(postponed)-sum(paid_prev_month)))
