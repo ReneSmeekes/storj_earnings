@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-version = "10.2.1"
+version = "10.3.0"
 
 from calendar import monthrange
 from datetime import datetime
@@ -108,6 +108,7 @@ satellites = """
                            WHEN 'F474535A19DB00DB4F8071A1BE6C2551F4DED6A6E38F0818C68C68D000000000' THEN 'europe-north-1'
                            WHEN '7B2DE9D72C2E935F1918C058CAAF8ED00F0581639008707317FF1BD000000000' THEN 'saltlake'
                            WHEN '004AE89E970E703DF42BA4AB1416A3B30B7E1D8E14AA0E558F7EE26800000000' THEN 'stefan-benten'
+                           WHEN '22AB2E4777ADEA958D7512947D93C36E907745D463816DCC96F9CFAF80000000' THEN 'qa.storj.io'
                            ELSE '-UNKNOWN-'
                        END satellite_name,
                        CASE hex(satellite_id)
@@ -118,6 +119,7 @@ satellites = """
                            WHEN 'F474535A19DB00DB4F8071A1BE6C2551F4DED6A6E38F0818C68C68D000000000' THEN 5
                            WHEN '7B2DE9D72C2E935F1918C058CAAF8ED00F0581639008707317FF1BD000000000' THEN 6
                            WHEN '004AE89E970E703DF42BA4AB1416A3B30B7E1D8E14AA0E558F7EE26800000000' THEN 7
+                           WHEN '22AB2E4777ADEA958D7512947D93C36E907745D463816DCC96F9CFAF80000000' THEN 8
                            ELSE 999
                        END satellite_num
                 FROM (
