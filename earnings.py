@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-version = "10.3.0"
+version = "10.4.0"
 
 from calendar import monthrange
 from datetime import datetime
@@ -11,6 +11,7 @@ import sys
 import sqlite3
 
 audit_req = '100'
+zksync_bonus = 1.1
 
 if len(sys.argv) > 3:
     sys.exit('ERROR: No more than two argument allowed. \nIf your path contains spaces use quotes. \nExample: python ' 
@@ -309,6 +310,8 @@ paid_prev_month = list()
 receipt = list()
 receipt_amount = list()
 
+paid_incl_bonus = list()
+
 held_perc = list()
 paid_sum = list()
 paid_sum_surge = list()
@@ -370,6 +373,11 @@ for data in con.execute(query):
 
     receipt.append(data[23])
     receipt_amount.append(data[24])
+    
+    if "https://zkscan.io/" in receipt[-1]:
+    	paid_incl_bonus.append(paid_out[-1] * zksync_bonus)
+    else:
+    	paid_incl_bonus.append(paid_out[-1])
     
     month_nr.append(data[25])
 
@@ -457,6 +465,9 @@ for i in range(len(usd_sum)):
         print("\t\t\t\t\t\t\t\t\t\t      PAID PREVIOUS MONTHS ${:8.4f}".format(paid_prev_month[i]))
         print("\t\t\t\t\t\t\t\t\t\t\t\tPAID TOTAL ${:8.4f}".format(paid_out[i]))
 
+    if (paid_incl_bonus[i] > paid_out[i] and year_month >= 202110):
+	    print("\t\t\t\t\t\t\t\t\t     PAID TOTAL INCL. ZKSYNC BONUS ${:8.4f}".format(paid_incl_bonus[i]))
+
     if postponed[i] > 0.00001:
         print("\t\t\t\t\t\t\t\t\t\t\t  PAYOUT POSTPONED ${:8.4f}".format(postponed[i]))
 
@@ -485,6 +496,9 @@ if sum(postponed) > 0.00001:
 if sum(paid_prev_month) > 0.00001:
     print("\n\t\t\t\t\t\t\t\t\t\t      PAID PREVIOUS MONTHS ${:8.4f}".format(sum(paid_prev_month)))
     print("\t\t\t\t\t\t\t\t\t\t\t\tPAID TOTAL ${:8.4f}".format(sum(paid_out)))
+
+if (sum(paid_incl_bonus) > sum(paid_out) and year_month >= 202110):
+	print("\n\t\t\t\t\t\t\t\t\t     PAID TOTAL INCL. ZKSYNC BONUS ${:8.4f}".format(sum(paid_incl_bonus)))
 
 if sum(postponed_so_far)-sum(paid_prev_month) > 0.00001:
     print("\n\t\t\t\t\t\t\t\t\t  POSTPONED PAYOUT PREVIOUS MONTHS ${:8.4f}".format(sum(postponed_so_far)-sum(paid_prev_month)))
