@@ -47,7 +47,7 @@ Other OS's and versions will likely also work.
 ### Warning
 If you are running Docker on Windows or MacOS, stop the node, copy the bandwidth.db, storage_usage.db, piece_spaced_used.db, reputation.db and heldamount.db to a different location and run the script from there. Running the script on docker nodes on these OS's while the node is using it could lead to corruption of the database, which will kill the node.
 
-## Usage
+## CLI Usage
 Earnings for current month:
 ```
 python earnings.py /path/to/storj/data
@@ -59,3 +59,12 @@ Earnings for previous months:
 ```
 python earnings.py /path/to/storj/data 2019-05
 ```
+
+## Windows launcher
+Create a folder.
+Copy [earnings.py](https://github.com/ReneSmeekes/storj_earnings/blob/master/earnings.py) and [windows_launcher.bat](https://github.com/ReneSmeekes/storj_earnings/blob/master/windows_launcher.bat) files into it.
+modify this line to add storj data path.
+```
+python "%~dp0\earnings.py" "\path\to\storj\data"
+```
+launch windows_launcher.bat
