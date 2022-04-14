@@ -1,7 +1,7 @@
 # storj_earnings
 Earnings calculation script for Storj V3 storagenodes
 
-# Example current month:
+## Example current month:
 ```
 April 2022 (Version: 11.1.0)                                            [snapshot: 2022-04-14 18:11:09Z]
                         TYPE            PRICE                   DISK       BANDWIDTH             PAYOUT
@@ -66,7 +66,7 @@ Earnings for previous months:
 python earnings.py /path/to/storj/data 2019-05
 ```
 
-# Example previous months:
+## Example previous months:
 ```
 February 2021 (Version: 11.1.0)
                         TYPE            PRICE                   DISK       BANDWIDTH             PAYOUT
