@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-version = "11.0.0"
+version = "11.1.0"
 
 from calendar import monthrange
 from datetime import datetime
-from math import log
+from math import log, ceil
 
 import os
 import sys
 import sqlite3
 
 audit_req = '100'
+
 zksync_bonus = 1.1
+exponential_audit_perc = 40
 
 if len(sys.argv) > 3:
     sys.exit('ERROR: No more than two arguments allowed. \nIf your path contains spaces use quotes. \nExample: python ' 
@@ -348,7 +350,10 @@ for data in con.execute(query):
     usd_sum_surge.append(((usd_get[-1] + usd_get_audit[-1] + usd_get_repair[-1] + usd_bh[-1]) * surge_percent[-1]) / 100)
     
     if data[8] == 'Vetting ':
-        rep_status.append('{:d}% Vetting progress > {:2d} / {:d} Audits'.format(int((100*log(float(data[9])+1))//log(float(audit_req)+1)), int(data[9]), int(audit_req)) )
+        rep_status.append('{:d}% Vetting progress > {:2d} / {:d} Audits'.format(
+        	int(round(exponential_audit_perc*(log(float(data[9])+1))/log(float(audit_req)+1) + 
+        	(100-exponential_audit_perc)*(float(data[9])/float(audit_req)))), int(data[9]), int(audit_req)) 
+        )
     else:
         rep_status.append(data[8])
     uptime_score.append(data[10])
