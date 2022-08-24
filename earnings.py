@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-version = "11.1.0"
+version = "12.0.0"
 
 from calendar import monthrange
 from datetime import datetime
@@ -111,7 +111,13 @@ satellites = """
     SELECT DISTINCT active_sat.satellite_id,
                        CASE 
                     	   WHEN sat.address IS NOT NULL THEN sat.address
-                           WHEN hex(satellite_id) = '004AE89E970E703DF42BA4AB1416A3B30B7E1D8E14AA0E558F7EE26800000000' THEN 'satellite.stefan-benten.de:7777 (shut down)'
+                           WHEN hex(satellite_id) = '84A74C2CD43C5BA76535E1F42F5DF7C287ED68D33522782F4AFABFDB40000000' THEN 'ap1.storj.io:7777*'
+                           WHEN hex(satellite_id) = 'AF2C42003EFC826AB4361F73F9D890942146FE0EBE806786F8E7190800000000' THEN 'eu1.storj.io:7777*'
+                           WHEN hex(satellite_id) = 'F474535A19DB00DB4F8071A1BE6C2551F4DED6A6E38F0818C68C68D000000000' THEN 'europe-north-1.tardigrade.io:7777*'
+                           WHEN hex(satellite_id) = '7B2DE9D72C2E935F1918C058CAAF8ED00F0581639008707317FF1BD000000000' THEN 'saltlake.tardigrade.io:7777*'
+                           WHEN hex(satellite_id) = 'A28B4F04E10BAE85D67F4C6CB82BF8D4C0F0F47A8EA72627524DEB6EC0000000' THEN 'us1.storj.io:7777*'
+                           WHEN hex(satellite_id) = '04489F5245DED48D2A8AC8FB5F5CD1C6A638F7C6E75EFD800EF2D72000000000' THEN 'us2.storj.io:7777*'
+                           WHEN hex(satellite_id) = '004AE89E970E703DF42BA4AB1416A3B30B7E1D8E14AA0E558F7EE26800000000' THEN 'satellite.stefan-benten.de:7777* (shut down)'
                            ELSE '-UNKNOWN-'
                        END satellite_name,
                        sat.added_at AS satellite_added_at
@@ -120,7 +126,7 @@ satellites = """
                    UNION
                    SELECT satellite_id, created_at interval_start FROM bandwidth_usage WHERE {time_window}
                    UNION
-                   SELECT satellite_id, interval_start FROM su.storage_usage WHERE {time_window}
+                   SELECT satellite_id, timestamp interval_start FROM su.storage_usage WHERE {time_window}
                 ) active_sat
                 LEFT JOIN satellites sat
                 ON active_sat.satellite_id = sat.node_id
@@ -179,7 +185,7 @@ query = """
       SELECT
       satellite_id
       ,SUM(at_rest_total) bh_total
-      FROM su.storage_usage
+      FROM (SELECT timestamp interval_start, satellite_id, at_rest_total FROM su.storage_usage)
       WHERE {time_window}
       GROUP BY satellite_id
     ) c
@@ -192,14 +198,14 @@ query = """
             WHEN offline_suspended_at IS NOT NULL THEN 'WARNING: Downtime suspension @ ' || datetime(offline_suspended_at)
             WHEN offline_under_review_at IS NOT NULL THEN 'WARNING: Downtime under review @ ' || datetime(offline_under_review_at)
             WHEN audit_success_count < {audit_req} THEN 'Vetting '
-            WHEN audit_reputation_score < 0.98 OR audit_unknown_reputation_score < 0.98 THEN 'WARNING: Audits failing'
+            WHEN audit_reputation_score < 0.998 OR audit_unknown_reputation_score < 0.998 THEN 'WARNING: Audits failing'
             WHEN online_score < 0.98 THEN 'WARNING: Downtime high'
             ELSE 'OK' END AS rep_status
       ,date(joined_at) AS joined_at
       ,MIN(audit_success_count, {audit_req}) AS vet_count
       ,100.0*online_score AS uptime_score
-      ,100.0-((audit_reputation_score-0.6)/0.004) AS audit_score
-      ,100.0-((audit_unknown_reputation_score-0.6)/0.004) AS audit_suspension_score
+      ,(1-audit_reputation_score)/0.0004 AS audit_score
+      ,(1-audit_unknown_reputation_score)/0.0004 AS audit_suspension_score
       FROM r.reputation
     ) d
     ON x.satellite_id = d.satellite_id
