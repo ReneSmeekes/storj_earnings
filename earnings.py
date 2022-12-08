@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-version = "12.0.0"
+version = "12.3.0"
 
 from calendar import monthrange
 from datetime import datetime
@@ -14,6 +14,9 @@ audit_req = '100'
 
 zksync_bonus = 1.1
 exponential_audit_perc = 40
+
+dq_threshold = 0.96
+suspension_threshold = 0.6
 
 if len(sys.argv) > 3:
     sys.exit('ERROR: No more than two arguments allowed. \nIf your path contains spaces use quotes. \nExample: python ' 
@@ -93,7 +96,7 @@ def formatSize(size):
         }
     unit = units.get(power)
     sizeForm = size / (1000.00**power)
-    return "{:9.2f} {}".format(sizeForm, unit)
+    return "{:6.2f} {}".format(sizeForm, unit)
 
 date_from = datetime(mdate.year, mdate.month, 1)
 date_to = datetime(mdate.year + int(mdate.month / 12), ((mdate.month % 12) + 1), 1)
@@ -149,19 +152,20 @@ query = """
     ,COALESCE(d.audit_suspension_score,0) audit_suspension_score
     ,COALESCE(d.joined_at, '') sat_start_dt
     ,COALESCE(f.surge_percent, 100) surge_percent
-    ,COALESCE(g.held_so_far, 0) held_so_far
-    ,COALESCE(g.disp_so_far, 0) disp_so_far
+    ,COALESCE(g.held_so_far,0) held_so_far
+    ,COALESCE(g.disp_so_far,0) disp_so_far
     ,COALESCE(g.postponed_so_far, 0) postponed_so_far
-    ,COALESCE(f.disposed, 0) disposed
-    ,COALESCE(f.payout, 0) payout
-    ,COALESCE(f.paid_out, 0) paid_out
+    ,COALESCE(f.disposed,0) disposed
+    ,COALESCE(f.payout,0) payout
+    ,COALESCE(f.paid_out,0) paid_out
     ,CASE WHEN f.payout > f.paid_out THEN f.payout - f.paid_out ELSE 0 END postponed
     ,CASE WHEN f.paid_out > f.payout THEN f.paid_out - f.payout ELSE 0 END paid_prev_month
     ,COALESCE(h.receipt, '') receipt
-    ,COALESCE(h.receipt_amount, 0) receipt_amount
+    ,COALESCE(h.receipt_amount,0) receipt_amount
     ,1+strftime('%m', date('{date_from}')) - strftime('%m', date(d.joined_at)) +
      (strftime('%Y', date('{date_from}')) - strftime('%Y', date(d.joined_at))) * 12 AS month_nr
     ,COALESCE(SUBSTR(f.pay_stat, 1, LENGTH(f.pay_stat)-2), '') AS pay_status
+    ,COALESCE(c.seconds_bh_included,0) seconds_bh_included
     FROM ({satellites}) x
     LEFT JOIN 
     psu.piece_space_used b
@@ -185,7 +189,15 @@ query = """
       SELECT
       satellite_id
       ,SUM(at_rest_total) bh_total
-      FROM (SELECT timestamp interval_start, satellite_id, at_rest_total FROM su.storage_usage)
+      ,strftime('%s', max(edt)) - strftime('%s', min(sdt)) seconds_bh_included
+      FROM (SELECT timestamp interval_start, satellite_id, at_rest_total, interval_end_time edt,
+            (SELECT interval_end_time 
+             FROM su.storage_usage su2 
+             WHERE su1.satellite_id = su2.satellite_id 
+             AND su2.timestamp < su1.timestamp
+             ORDER BY timestamp DESC
+             LIMIT 1) sdt
+            FROM su.storage_usage su1)
       WHERE {time_window}
       GROUP BY satellite_id
     ) c
@@ -204,8 +216,8 @@ query = """
       ,date(joined_at) AS joined_at
       ,MIN(audit_success_count, {audit_req}) AS vet_count
       ,100.0*online_score AS uptime_score
-      ,(1-audit_reputation_score)/0.0004 AS audit_score
-      ,(1-audit_unknown_reputation_score)/0.0004 AS audit_suspension_score
+      ,((1-audit_reputation_score)*100.0)/(1.0-{dq_threshold}) AS audit_score
+      ,((1-audit_unknown_reputation_score)*100.0)/(1.0-{suspension_threshold}) AS audit_suspension_score
       FROM r.reputation
     ) d
     ON x.satellite_id = d.satellite_id
@@ -251,7 +263,8 @@ query = """
     ON x.satellite_id = h.satellite_id
     ORDER BY CAST(COALESCE(x.satellite_added_at, '9999-12-31') AS date), x.satellite_name;
 """.format(satellites=satellites, time_window=time_window, audit_req=audit_req, year_month_char=year_month_char, 
-           year_month_prev_char=year_month_prev_char, date_from=date_from.strftime("%Y-%m-%d"))
+           year_month_prev_char=year_month_prev_char, date_from=date_from.strftime("%Y-%m-%d"), 
+           dq_threshold=dq_threshold, suspension_threshold=suspension_threshold)
 
 con = sqlite3.connect(dbPathS)
 
@@ -322,6 +335,9 @@ paid_sum_surge = list()
 held_sum = list()
 held_sum_surge = list()
 
+seconds_bh_included = list()
+disk_average_so_far = list()
+
 hours_month = 720 #Storj seems to use 720 instead of calculation
 hours_this_month = monthrange(mdate.year, mdate.month)[1] * 24
 month_passed = (datetime.utcnow() - date_from).total_seconds() / (hours_this_month*3600)
@@ -390,6 +406,9 @@ for data in con.execute(query):
 
     pay_status.append(data[26])
 
+    seconds_bh_included.append(data[27])
+    disk_average_so_far.append((bh[-1]*3600.0)/seconds_bh_included[-1])
+
     if month_nr[-1] >= 1 and month_nr[-1] <= 3:
         held_perc.append(.75)
     elif month_nr[-1] >= 4 and month_nr[-1] <= 6:
@@ -409,43 +428,45 @@ con.close()
 if len(sys.argv) == 3:
     print("\033[4m{} (Version: {})\033[0m".format(mdate.strftime('%B %Y'), version))    
 else:
-    print("\033[4m{} (Version: {})\t\t\t\t\t\t[snapshot: {}]\033[0m".format(mdate.strftime('%B %Y'), version, mdate.strftime('%Y-%m-%d %H:%M:%SZ')))
+    print("\033[4m{} (Version: {})\t\t\t\t\t[snapshot: {}]\033[0m".format(mdate.strftime('%B %Y'), version, mdate.strftime('%Y-%m-%d %H:%M:%SZ')))
 
 
-print("\t\t\tTYPE\t\tPRICE\t\t\tDISK\t   BANDWIDTH\t\t PAYOUT")
+print("\t\t\tTYPE\t\tPRICE\t\t\tDISK\tBANDWIDTH\t PAYOUT")
 print("Upload\t\t\tIngress\t\t-not paid-\t\t\t{}".format(formatSize(sum(put))))
 print("Upload Repair\t\tIngress\t\t-not paid-\t\t\t{}".format(formatSize(sum(put_repair))))
-print("Download\t\tEgress\t\t$ 20.00 / TB\t\t\t{}\t\t${:6.2f}".format(formatSize(sum(get)), sum(usd_get)))
-print("Download Repair\t\tEgress\t\t$ 10.00 / TB\t\t\t{}\t\t${:6.2f}".format(formatSize(sum(get_repair)), sum(usd_get_repair)))
-print("Download Audit\t\tEgress\t\t$ 10.00 / TB\t\t\t{}\t\t${:6.2f}".format(formatSize(sum(get_audit)), sum(usd_get_audit)))
+print("Download\t\tEgress\t\t$ 20.00 / TB\t\t\t{}\t${:6.2f}".format(formatSize(sum(get)), sum(usd_get)))
+print("Download Repair\t\tEgress\t\t$ 10.00 / TB\t\t\t{}\t${:6.2f}".format(formatSize(sum(get_repair)), sum(usd_get_repair)))
+print("Download Audit\t\tEgress\t\t$ 10.00 / TB\t\t\t{}\t${:6.2f}".format(formatSize(sum(get_audit)), sum(usd_get_audit)))
 if year_month < 201909:
     print("\n\t\t       ** Storage usage not available prior to September 2019 **")
-    print("________________________________________________________________________________________________________+")
-    print("Total\t\t\t\t\t\t\t\t\t{}\t   ${:6.2f}".format(formatSize(sum(bw_sum)), sum(usd_sum)))
+    print("________________________________________________________________________________________________+")
+    print("Total\t\t\t\t\t\t\t\t\t{}\t${:6.2f}".format(formatSize(sum(bw_sum)), sum(usd_sum)))
 else:
     if len(sys.argv) < 3:
         print("Disk Current\t\tStorage\t\t-not paid-\t{}".format(formatSize(sum(disk))))
-    print("Disk Average Month\tStorage\t\t$  1.50 / TBm\t{}m\t\t\t\t${:6.2f}".format(formatSize(sum(bh) / hours_month), sum(usd_bh)))
-    print("Disk Usage\t\tStorage\t\t-not paid-\t{}h".format(formatSize(sum(bh))))
-    print("________________________________________________________________________________________________________+")
-    print("Total\t\t\t\t\t\t\t{}m\t{}\t\t${:6.2f}".format(formatSize(sum(bh) / hours_month), formatSize(sum(bw_sum)), sum(usd_sum)))
+        print("Disk Average So Far\tStorage\t\t-not paid-\t{}".format(formatSize(sum(disk_average_so_far))))
+#Debug line for B*h testing
+#        print("Disk Average So Far\t(debug)\t\t\t\t>> {:2.0f}% of expected {} <<".format(100*sum(disk_average_so_far)/((2*sum(disk)-(sum(put)*0.75+sum(put_repair)))/2), formatSize((2*sum(disk)-(sum(put)*0.75+sum(put_repair)))/2)))
+    print("Disk Usage Month\tStorage\t\t$  1.50 / TBm\t{}m\t\t\t${:6.2f}".format(formatSize(sum(bh) / hours_month), sum(usd_bh)))
+    print("________________________________________________________________________________________________+")
+    print("Total\t\t\t\t\t\t\t{}m\t{}\t${:6.2f}".format(formatSize(sum(bh) / hours_month), formatSize(sum(bw_sum)), sum(usd_sum)))
 if len(sys.argv) < 3:
-    print("Estimated total by end of month\t\t\t\t{}m\t{}\t\t${:6.2f}".format(formatSize((sum(bh) / hours_month)/month_passed), formatSize(sum(bw_sum)/month_passed), sum(usd_sum)/month_passed))
+    print("Estimated total by end of month\t\t\t\t{}m\t{}\t${:6.2f}".format(formatSize(sum(disk_average_so_far)), formatSize(sum(bw_sum)/month_passed), ((sum(usd_sum)-sum(usd_bh))/month_passed) + ((1.5 / (1000.00**4)) * sum(disk_average_so_far)) ))
 elif len(surge_percent) > 0 and sum(surge_percent)/len(surge_percent) > 100.000001:
-    print("Total Surge ({:.0f}%)\t\t\t\t\t\t\t\t\t\t${:6.2f}".format((sum(usd_sum_surge)*100) / sum(usd_sum), sum(usd_sum_surge)))
+    print("Total Surge ({:.0f}%)\t\t\t\t\t\t\t\t\t${:6.2f}".format((sum(usd_sum_surge)*100) / sum(usd_sum), sum(usd_sum_surge)))
 
 print("\033[4m\nPayout and held amount by satellite:\033[0m")
 
 print("┌────────────────────────────────┬───────────────────┬─────────────────┬────────────────────────┬─────────────────────────────────────┐")
 print("│ SATELLITE                      │      NODE AGE     │   HELD AMOUNT   │        REPUTATION      │          PAYOUT THIS MONTH          │")
 print("│                                │ Joined     Month  │ Perc     Total  │    Disq   Susp   Down  │     Earned        Held      Payout  │")
-empty="│                                │                   │                 │                        │                                     │"
 sep = "├────────────────────────────────┼───────────────────┼─────────────────┼────────────────────────┼─────────────────────────────────────┤"
+empty="│                                │                   │                 │                        │                                     │"
 lastl="└────────────────────────────────┴───────────────────┴─────────────────┴────────────────────────┴─────────────────────────────────────┘"
 
 def tableLine(leftstr, rightstr, indent=True, empty=empty):
     if indent:
-        leftstr = "│     " + leftstr
+        leftstr = "│    " + leftstr
     else:
         leftstr = "│ " + leftstr
     if len(rightstr) > 0:
@@ -459,18 +480,20 @@ for i in range(len(usd_sum)):
         sat = "{} ({})".format(sat_name[i],rep_status[i])
     else:
         rep = "                     "
-        sat = "{}".format(sat_name[i])
+        sat = sat_name[i]
 
-    print("{}".format(tableLine(sat,"", False)))
+    print(tableLine(sat,"", False))
     	
     print(tableLine("","│ {} {:5.0f}  │  {:2.0f}%  ${:7.2f}  │ {}  │  ${:8.4f}   ${:8.4f}   ${:8.4f}".format(sat_start_dt[i],month_nr[i],held_perc[i]*100,held_so_far[i]-disp_so_far[i],rep,usd_sum[i],held_sum[i],paid_sum[i])))
+#Debug line for B*h testing
+#    print("Disk Average So Far (debug): {}  >> {:2.0f}% of expected {} <<".format(formatSize(disk_average_so_far[i]), 100*disk_average_so_far[i]/((2*disk[i]-(put[i]*0.75+put_repair[i]))/2), formatSize((2*disk[i]-(put[i]*0.75+put_repair[i]))/2)))
 
     if surge_percent[i] > 100.000001:
         print(tableLine("SURGE ({:3.0f}%)".format(surge_percent[i]),"${:8.4f}   ${:8.4f}   ${:8.4f}".format(usd_sum_surge[i],held_sum_surge[i],paid_sum_surge[i])))
     
     if disposed[i] > 0.000001:
-        print(tableLine("HELD AMOUNT RETURNED       │                   │     - ${:7.2f}".format(disposed[i]), "+ ${:8.4f}".format(disposed[i])))
-        print(tableLine("AFTER RETURN               │                   │       ${:7.2f}".format(held_so_far[i]-(disp_so_far[i]+disposed[i])),"${:8.4f}".format(paid_sum_surge[i]+disposed[i])))
+        print(tableLine("HELD AMOUNT RETURNED        │                   │     - ${:7.2f}".format(disposed[i]), "+ ${:8.4f}".format(disposed[i])))
+        print(tableLine("AFTER RETURN                │                   │       ${:7.2f}".format(held_so_far[i]-(disp_so_far[i]+disposed[i])),"${:8.4f}".format(paid_sum_surge[i]+disposed[i])))
 
     if payout[i] > 0.000001:
         print(tableLine("","DIFFERENCE ${:8.4f}".format(payout[i]-(paid_sum_surge[i]+disposed[i]))))
@@ -501,8 +524,8 @@ if len(surge_percent) > 0.000001 and sum(surge_percent)/len(surge_percent) > 100
     print(tableLine("SURGE ({:3.0f}%)".format((sum(usd_sum_surge)*100)/sum(usd_sum)), "${:8.4f}   ${:8.4f}   ${:8.4f}".format(sum(usd_sum_surge),sum(held_sum_surge),sum(paid_sum_surge))))
 
 if sum(disposed) > 0.000001:
-    print(tableLine("HELD AMOUNT RETURNED       │                   │     - ${:7.2f}".format(sum(disposed)), "+ ${:8.4f}".format(sum(disposed))))
-    print(tableLine("AFTER RETURN               │                   │       ${:7.2f}".format(sum(held_so_far)-(sum(disp_so_far)+sum(disposed))), "${:8.4f}".format(sum(paid_sum_surge)+sum(disposed))))
+    print(tableLine("HELD AMOUNT RETURNED        │                   │     - ${:7.2f}".format(sum(disposed)), "+ ${:8.4f}".format(sum(disposed))))
+    print(tableLine("AFTER RETURN                │                   │       ${:7.2f}".format(sum(held_so_far)-(sum(disp_so_far)+sum(disposed))), "${:8.4f}".format(sum(paid_sum_surge)+sum(disposed))))
 
 if sum(payout) > 0.000001:
     print(empty + "\n" + tableLine("","PAYOUT DIFFERENCE ${:8.4f}".format(sum(payout)-(sum(paid_sum_surge)+sum(disposed)))))
