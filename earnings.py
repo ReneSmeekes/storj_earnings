@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-version = "12.3.0"
+version = "12.3.1"
 
 from calendar import monthrange
 from datetime import datetime
@@ -165,7 +165,7 @@ query = """
     ,1+strftime('%m', date('{date_from}')) - strftime('%m', date(d.joined_at)) +
      (strftime('%Y', date('{date_from}')) - strftime('%Y', date(d.joined_at))) * 12 AS month_nr
     ,COALESCE(SUBSTR(f.pay_stat, 1, LENGTH(f.pay_stat)-2), '') AS pay_status
-    ,COALESCE(c.seconds_bh_included,0) seconds_bh_included
+    ,COALESCE(c.seconds_bh_included,2592000) seconds_bh_included --Assume full month if NULL. This basically only happens when no storage has been reported by the satellite yet.
     FROM ({satellites}) x
     LEFT JOIN 
     psu.piece_space_used b
