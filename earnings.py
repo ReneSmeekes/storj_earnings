@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-version = "13.0.0"
+version = "13.0.1"
 
 from calendar import monthrange
 from datetime import datetime
@@ -416,8 +416,8 @@ for data in con.execute(query):
     
     if data[12] == 'Vetting ':
         rep_status.append('{:d}% Vetted > {:d}/{:d} Audits'.format(
-        	int(round(exponential_audit_perc*(log(float(data[9])+1))/log(float(audit_req)+1) + 
-        	(100-exponential_audit_perc)*(float(data[9])/float(audit_req)))), int(data[9]), int(audit_req)) 
+        	int(round(exponential_audit_perc*(log(float(data[13])+1))/log(float(audit_req)+1) + 
+        	(100-exponential_audit_perc)*(float(data[13])/float(audit_req)))), int(data[13]), int(audit_req)) 
         )
     else:
         rep_status.append(data[12])
@@ -490,7 +490,7 @@ if len(sys.argv) == 3:
 else:
     print("\033[4m{} (Version: {})\t\t\t\t\t\t[snapshot: {}]\033[0m".format(mdate.strftime('%B %Y'), version, mdate.strftime('%Y-%m-%d %H:%M:%SZ')))
 
-print("\t\t\tTYPE\t\tPRICE\t\t\t\tDISK\tBANDWIDTH\t PAYOUT")
+print("\t\t\tTYPE\t\tPRICE\t\t\t     DISK\tBANDWIDTH\t PAYOUT")
 print("Upload\t\t\tIngress\t\t-not paid-\t\t\t\t{}".format(formatSize(sum(put))))
 print("Upload Repair\t\tIngress\t\t-not paid-\t\t\t\t{}".format(formatSize(sum(put_repair))))
 print("Download\t\tEgress\t\t${:6.2f} / TB (avg)\t\t\t{}\t${:6.2f}".format(avg_get_payout, formatSize(sum(get)), sum(usd_get)))
@@ -542,8 +542,9 @@ for i in range(len(usd_sum)):
         sat = sat_name[i]
 
     print(tableLine(sat,"${:6.2f}/TBm ${:6.2f}/TB  ${:6.2f}/TB      {:3.0f}%        {:3.0f}% ".format(bh_payout[i], get_payout[i], get_repair_payout[i], held_perc[i]*100, (1-held_perc[i])*100), False))
-    	#held_perc[i]*100,
     print(tableLine("","{} {:5.0f}  │   ${:7.2f}  │ {}  │  ${:8.4f}   ${:8.4f}   ${:8.4f}  -${:8.4f}   ${:8.4f}".format(sat_start_dt[i],month_nr[i],held_so_far[i]-disp_so_far[i],rep,usd_bh[i],usd_get[i],usd_get_repair[i]+usd_get_audit[i],held_sum[i],paid_sum[i])))
+#Optional line for display of data used
+#    print(tableLine("","{}   {}   {}                        ".format(formatSize(bh[i] / hours_month), formatSize(get[i]), formatSize(get_repair[i]+get_audit[i]) )))
 #Debug line for B*h testing
 #    print("Disk Average So Far (debug): {}  >> {:2.0f}% of expected {} <<".format(formatSize(disk_average_so_far[i]), 100*disk_average_so_far[i]/((2*disk[i]-(put[i]*0.75+put_repair[i]))/2), formatSize((2*disk[i]-(put[i]*0.75+put_repair[i]))/2)))
 
