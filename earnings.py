@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-version = "13.0.1"
+version = "13.0.2"
 
 from calendar import monthrange
 from datetime import datetime
@@ -485,6 +485,15 @@ if sum(bh) > 0:
 else:
     avg_bh_payout = sum(bh_payout)/len(bh_payout)
 
+#Calculate estimate by end of month
+usd_est_bh = (avg_bh_payout / (1000.00**4)) * sum(disk_average_so_far) * (hours_this_month/hours_month)
+usd_est_get = sum(usd_get)/month_passed
+usd_est_get_repair = sum(usd_get_repair)/month_passed
+usd_est_get_audit = sum(usd_get_audit)/month_passed
+usd_est_total = usd_est_bh + usd_est_get + usd_est_get_repair + usd_est_get_audit
+usd_est_held = usd_est_total * sum(held_sum)/sum(usd_sum)
+usd_est_paid = usd_est_total * sum(paid_sum)/sum(usd_sum)
+
 if len(sys.argv) == 3:
     print("\033[4m{} (Version: {})\033[0m".format(mdate.strftime('%B %Y'), version))    
 else:
@@ -510,7 +519,7 @@ else:
     print("________________________________________________________________________________________________________+")
     print("Total\t\t\t\t\t\t\t\t{}m\t{}\t${:6.2f}".format(formatSize(sum(bh) / hours_month), formatSize(sum(bw_sum)), sum(usd_sum)))
 if len(sys.argv) < 3:
-    print("Estimated total by end of month\t\t\t\t\t{}m\t{}\t${:6.2f}".format(formatSize(sum(disk_average_so_far)), formatSize(sum(bw_sum)/month_passed), ((sum(usd_sum)-sum(usd_bh))/month_passed) + ((1.5 / (1000.00**4)) * sum(disk_average_so_far)) ))
+    print("Estimated total by end of month\t\t\t\t\t{}m\t{}\t${:6.2f}".format(formatSize(sum(disk_average_so_far)), formatSize(sum(bw_sum)/month_passed), usd_est_total ))
 elif len(surge_percent) > 0 and sum(surge_percent)/len(surge_percent) > 100.000001:
     print("Total Surge ({:.0f}%)\t\t\t\t\t\t\t\t\t\t${:6.2f}".format((sum(usd_sum_surge)*100) / sum(usd_sum), sum(usd_sum_surge)))
 
@@ -581,7 +590,7 @@ for i in range(len(usd_sum)):
 print(sep + " +")
 print(tableLine("TOTAL                          │   ${:7.2f}".format(sum(held_so_far)-sum(disp_so_far)), "${:8.4f}   ${:8.4f}   ${:8.4f}  -${:8.4f}   ${:8.4f}".format(sum(usd_bh),sum(usd_get),sum(usd_get_repair)+sum(usd_get_audit),sum(held_sum),sum(paid_sum)), False ))
 if len(sys.argv) < 3:
-    print(tableLine("ESTIMATED END OF MONTH TOTAL   │   ${:7.2f}".format(sum(held_so_far)-sum(disp_so_far)+sum(held_sum)/month_passed), "${:8.4f}   ${:8.4f}   ${:8.4f}  -${:8.4f}   ${:8.4f}".format(sum(usd_bh)/month_passed,sum(usd_get)/month_passed,(sum(usd_get_repair)+sum(usd_get_audit))/month_passed,sum(held_sum)/month_passed,sum(paid_sum)/month_passed), False ))
+    print(tableLine("ESTIMATED END OF MONTH TOTAL   │   ${:7.2f}".format(sum(held_so_far)-sum(disp_so_far)+sum(held_sum)/month_passed), "${:8.4f}   ${:8.4f}   ${:8.4f}  -${:8.4f}   ${:8.4f}".format(usd_est_bh,usd_est_get,usd_est_get_repair+usd_est_get_audit,usd_est_held,usd_est_paid), False ))
 if len(surge_percent) > 0.000001 and sum(surge_percent)/len(surge_percent) > 100.000001:
     print(tableLine("SURGE ({:3.0f}%)".format((sum(usd_sum_surge)*100)/sum(usd_sum)), "${:8.4f}   ${:8.4f}   ${:8.4f}  -${:8.4f}   ${:8.4f}".format(sum(usd_bh_surge),sum(usd_get_surge),sum(usd_get_repair_surge)+sum(usd_get_audit_surge),sum(held_sum_surge),sum(paid_sum_surge))))
 
