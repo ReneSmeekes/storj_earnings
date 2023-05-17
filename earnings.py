@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-version = "13.0.2"
+version = "13.0.3"
 
 from calendar import monthrange
 from datetime import datetime
@@ -205,6 +205,7 @@ query = """
              FROM su.storage_usage su2 
              WHERE su1.satellite_id = su2.satellite_id 
              AND su2.timestamp < su1.timestamp
+             AND su2.interval_end_time <> '0001-01-01 00:00:00+00:00' /* ignore incomplete records */
              ORDER BY timestamp DESC
              LIMIT 1) sdt
             FROM su.storage_usage su1)
