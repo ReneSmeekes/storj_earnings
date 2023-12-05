@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-version = "13.0.3"
+version = "13.1.0"
 
 from calendar import monthrange
 from datetime import datetime
@@ -12,7 +12,7 @@ import sqlite3
 
 audit_req = '100'
 
-zksync_bonus = 1.1
+zksync_bonus = 1.03
 exponential_audit_perc = 40
 
 dq_threshold = 0.96
@@ -172,8 +172,8 @@ query = """
     ,CASE WHEN f.paid_out > f.payout THEN f.paid_out - f.payout ELSE 0 END paid_prev_month
     ,COALESCE(h.receipt, '') receipt
     ,COALESCE(h.receipt_amount,0) receipt_amount
-    ,1+strftime('%m', date('{date_from}')) - strftime('%m', date(d.joined_at)) +
-     (strftime('%Y', date('{date_from}')) - strftime('%Y', date(d.joined_at))) * 12 AS month_nr
+    ,COALESCE(1+strftime('%m', date('{date_from}')) - strftime('%m', date(d.joined_at)) +
+     (strftime('%Y', date('{date_from}')) - strftime('%Y', date(d.joined_at))) * 12, 0) AS month_nr
     ,COALESCE(SUBSTR(f.pay_stat, 1, LENGTH(f.pay_stat)-2), '') AS pay_status
     ,COALESCE(c.seconds_bh_included,2592000) seconds_bh_included --Assume full month if NULL. This basically only happens when no storage has been reported by the satellite yet.
     FROM ({satellites}) x
