@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-version = "13.2.0"
+version = "13.2.1"
 
 from calendar import monthrange
 from datetime import datetime, timezone
@@ -515,9 +515,9 @@ if year_month < 201909:
     print("Total\t\t\t\t\t\t\t\t\t\t{}\t${:6.2f}".format(formatSize(sum(bw_sum)), sum(usd_sum)))
 else:
     if len(sys.argv) < 3:
-        print("Disk Current Total\tStorage\t\t-not paid-\t\t{}".format(formatSize(sum(disk))))
-        print("Disk Current Trash\tStorage\t\t-not paid-\t\t{}".format(formatSize(trash_total)))
-        print("Disk Current Blobs\tStorage\t\t-not paid-\t\t{}".format(formatSize(sum(disk)-trash_total)))
+        print("Disk Current Total\tStorage\t\t-not paid-\t\t{}".format(formatSize(sum(disk)+trash_total)))
+        print("           ├ Trash\tStorage\t\t-not paid-\t\t{}".format(formatSize(trash_total)))
+        print("           └ Blobs\tStorage\t\t-not paid-\t\t{}".format(formatSize(sum(disk))))
         print("Disk Average So Far\tStorage\t\t-not paid-\t\t{}".format(formatSize(sum(disk_average_so_far))))
 #Debug line for B*h testing
 #        print("Disk Average So Far\t(debug)\t\t\t\t>> {:2.0f}% of expected {} <<".format(100*sum(disk_average_so_far)/((2*sum(disk)-(sum(put)*0.75+sum(put_repair)))/2), formatSize((2*sum(disk)-(sum(put)*0.75+sum(put_repair)))/2)))
