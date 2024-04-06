@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-version = "13.1.0"
+version = "13.2.0"
 
 from calendar import monthrange
-from datetime import datetime
+from datetime import datetime, timezone
 from math import log, ceil
 
 import os
@@ -82,9 +82,9 @@ if len(sys.argv) == 3:
         mdate = datetime.strptime(sys.argv[2], '%Y-%m')
     except ValueError:
         sys.exit('ERROR: Invalid month argument. \nUse YYYY-MM as format. \nExample: python ' 
-                 + sys.argv[0] + ' "' + os.getcwd() + '" "' + datetime.utcnow().strftime('%Y-%m') + '"')
+                 + sys.argv[0] + ' "' + os.getcwd() + '" "' + datetime.now(timezone.utc).strftime('%Y-%m') + '"')
 else:
-    mdate = datetime.utcnow()
+    mdate = datetime.now(timezone.utc)
 
 def formatSize(size):
     "Formats size to be displayed in the most fitting unit"
@@ -374,7 +374,7 @@ disk_average_so_far = list()
 
 hours_month = 720 #Storj seems to use 720 instead of calculation
 hours_this_month = monthrange(mdate.year, mdate.month)[1] * 24
-month_passed = (datetime.utcnow() - date_from).total_seconds() / (hours_this_month*3600)
+month_passed = (datetime.now(timezone.utc) - date_from.replace(tzinfo=timezone.utc)).total_seconds() / (hours_this_month*3600)
 
 for data in con.execute(query):
     if len(data) < 25:
@@ -467,6 +467,9 @@ for data in con.execute(query):
     held_sum.append(held_perc[-1]*usd_sum[-1])
     held_sum_surge.append((held_sum[-1] * surge_percent[-1]) / 100)
     
+for data in con.execute("SELECT total FROM psu.piece_space_used WHERE satellite_id = 'trashtotal';"):
+	trash_total = data[0]
+
 con.close()
 
 if sum(get) > 0:
@@ -512,7 +515,9 @@ if year_month < 201909:
     print("Total\t\t\t\t\t\t\t\t\t\t{}\t${:6.2f}".format(formatSize(sum(bw_sum)), sum(usd_sum)))
 else:
     if len(sys.argv) < 3:
-        print("Disk Current\t\tStorage\t\t-not paid-\t\t{}".format(formatSize(sum(disk))))
+        print("Disk Current Total\tStorage\t\t-not paid-\t\t{}".format(formatSize(sum(disk))))
+        print("Disk Current Trash\tStorage\t\t-not paid-\t\t{}".format(formatSize(trash_total)))
+        print("Disk Current Blobs\tStorage\t\t-not paid-\t\t{}".format(formatSize(sum(disk)-trash_total)))
         print("Disk Average So Far\tStorage\t\t-not paid-\t\t{}".format(formatSize(sum(disk_average_so_far))))
 #Debug line for B*h testing
 #        print("Disk Average So Far\t(debug)\t\t\t\t>> {:2.0f}% of expected {} <<".format(100*sum(disk_average_so_far)/((2*sum(disk)-(sum(put)*0.75+sum(put_repair)))/2), formatSize((2*sum(disk)-(sum(put)*0.75+sum(put_repair)))/2)))
