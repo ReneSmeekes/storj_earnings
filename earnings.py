@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-version = "13.3.0"
+version = "13.4.0"
 
 from calendar import monthrange
 from datetime import datetime, timezone
@@ -512,34 +512,36 @@ usd_est_paid = usd_est_total * sum(paid_sum)/sum(usd_sum)
 if len(sys.argv) == 3:
     print("\033[4m{} (Version: {})\033[0m".format(mdate.strftime('%B %Y'), version))    
 else:
-    print("\033[4m{} (Version: {})\t\t\t\t\t\t\t[snapshot: {}]\033[0m".format(mdate.strftime('%B %Y'), version, mdate.strftime('%Y-%m-%d %H:%M:%SZ')))
+    print("\033[4m{} (Version: {})\t\t\t\t\t\t[snapshot: {}]\033[0m".format(mdate.strftime('%B %Y'), version, mdate.strftime('%Y-%m-%d %H:%M:%SZ')))
 
-print("REPORTED BY\tTYPE\t  METRIC\t\tPRICE\t\t\t     DISK\tBANDWIDTH\t PAYOUT")
-print("Node\t\tIngress\t  Upload\t\t-not paid-\t\t\t\t{}".format(formatSize(sum(put))))
-print("Node\t\tIngress\t  Upload Repair\t\t-not paid-\t\t\t\t{}".format(formatSize(sum(put_repair))))
-print("Node\t\tEgress\t  Download\t\t${:6.2f} / TB (avg)\t\t\t{}\t${:6.2f}".format(avg_get_payout, formatSize(sum(get)), sum(usd_get)))
-print("Node\t\tEgress\t  Download Repair\t${:6.2f} / TB (avg)\t\t\t{}\t${:6.2f}".format(avg_get_repair_payout,formatSize(sum(get_repair)), sum(usd_get_repair)))
-print("Node\t\tEgress\t  Download Audit\t${:6.2f} / TB (avg)\t\t\t{}\t${:6.2f}".format(avg_get_audit_payout,formatSize(sum(get_audit)), sum(usd_get_audit)))
+print("REPORTED BY\tTYPE\t  METRIC\t\tPRICE\t\t\t  DISK\tBANDWIDTH\t PAYOUT")
+print("Node\t\tIngress\t  Upload\t\t-not paid-\t\t\t{}".format(formatSize(sum(put))))
+print("Node\t\tIngress\t  Upload Repair\t\t-not paid-\t\t\t{}".format(formatSize(sum(put_repair))))
+print("Node\t\tEgress\t  Download\t\t${:6.2f} / TB (avg)\t\t{}\t${:6.2f}".format(avg_get_payout, formatSize(sum(get)), sum(usd_get)))
+print("Node\t\tEgress\t  Download Repair\t${:6.2f} / TB (avg)\t\t{}\t${:6.2f}".format(avg_get_repair_payout,formatSize(sum(get_repair)), sum(usd_get_repair)))
+print("Node\t\tEgress\t  Download Audit\t${:6.2f} / TB (avg)\t\t{}\t${:6.2f}".format(avg_get_audit_payout,formatSize(sum(get_audit)), sum(usd_get_audit)))
 if year_month < 201909:
     print("\n\t\t       ** Storage usage not available prior to September 2019 **")
-    print("_______________________________________________________________________________________________________________+")
+    print("_______________________________________________________________________________________________________+")
     print("Total\t\t\t\t\t\t\t\t\t\t\t{}\t${:6.2f}".format(formatSize(sum(bw_sum)), sum(usd_sum)))
 else:
     if len(sys.argv) < 3:
-        print("Node\t\tStorage\t  Disk Current Total\t-not paid-\t\t{}".format(formatSize(sum(disk)+trash_total)))
-        print("Node\t\tStorage\t             ├ Trash\t-not paid-\t\t{}".format(formatSize(trash_total)))
-        print("Node\t\tStorage\t             └ Blobs\t-not paid-\t\t{}".format(formatSize(sum(disk))))
-        print("Satellite\tStorage\t  Disk Last Report\t-not paid-\t\t{}".format(formatSize(sum(disk_last_report))))
-        print("Satellite\tStorage\t  Disk Average So Far\t-not paid-\t\t{}".format(formatSize(sum(disk_average_so_far))))
+        print("Node\t\tStorage\t  Disk Current Total\t-not paid-\t     {}".format(formatSize(sum(disk)+trash_total)))
+        print("Node\t\tStorage\t             ├ Blobs\t-not paid-\t     {}".format(formatSize(sum(disk))))
+        print("Node\t\tStorage\t             └ Trash  ┐\t-not paid-\t     {}".format(formatSize(trash_total)))
+        print("Node+Sat. Calc.\tStorage\t  Uncollected Garbage ┤\t-not paid-\t     {}".format(formatSize(sum(disk)-sum(disk_last_report))))
+        print("Node+Sat. Calc.\tStorage\t  Total Unpaid Data <─┘\t-not paid-\t     {}".format(formatSize(trash_total+sum(disk)-sum(disk_last_report))))
+        print("Satellite\tStorage\t  Disk Last Report\t-not paid-\t     {}".format(formatSize(sum(disk_last_report))))
+        print("Satellite\tStorage\t  Disk Average So Far\t-not paid-\t     {}".format(formatSize(sum(disk_average_so_far))))
 #Debug line for B*h testing
 #        print("Disk Average So Far\t(debug)\t\t\t\t>> {:2.0f}% of expected {} <<".format(100*sum(disk_average_so_far)/((2*sum(disk)-(sum(put)*0.75+sum(put_repair)))/2), formatSize((2*sum(disk)-(sum(put)*0.75+sum(put_repair)))/2)))
-    print("Satellite\tStorage\t  Disk Usage Month\t${:6.2f} / TBm (avg)\t{}m\t\t\t${:6.2f}".format(avg_bh_payout, formatSize(sum(bh) / hours_month), sum(usd_bh)))
-    print("________________________________________________________________________________________________________________+")
-    print("Total\t\t\t\t\t\t\t\t\t{}m\t{}\t${:6.2f}".format(formatSize(sum(bh) / hours_month), formatSize(sum(bw_sum)), sum(usd_sum)))
+    print("Satellite\tStorage\t  Disk Usage Month\t${:6.2f} / TBm (avg)  {}m\t\t\t${:6.2f}".format(avg_bh_payout, formatSize(sum(bh) / hours_month), sum(usd_bh)))
+    print("________________________________________________________________________________________________________+")
+    print("Total\t\t\t\t\t\t\t\t     {}m\t{}\t${:6.2f}".format(formatSize(sum(bh) / hours_month), formatSize(sum(bw_sum)), sum(usd_sum)))
 if len(sys.argv) < 3:
-    print("Estimated total by end of month\t\t\t\t\t\t{}m\t{}\t${:6.2f}".format(formatSize(sum(disk_average_so_far)), formatSize(sum(bw_sum)/month_passed), usd_est_total ))
+    print("Estimated total by end of month\t\t\t\t\t     {}m\t{}\t${:6.2f}".format(formatSize(sum(disk_average_so_far)), formatSize(sum(bw_sum)/month_passed), usd_est_total ))
 elif len(surge_percent) > 0 and sum(surge_percent)/len(surge_percent) > 100.000001:
-    print("Total Surge ({:.0f}%)\t\t\t\t\t\t\t\t\t\t\t${:6.2f}".format((sum(usd_sum_surge)*100) / sum(usd_sum), sum(usd_sum_surge)))
+    print("Total Surge ({:.0f}%)\t\t\t\t\t\t\t\t\t\t${:6.2f}".format((sum(usd_sum_surge)*100) / sum(usd_sum), sum(usd_sum_surge)))
 
 print("\033[4m\nPayout and held amount by satellite:\033[0m")
 
