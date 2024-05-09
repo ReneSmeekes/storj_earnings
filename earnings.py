@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-version = "13.4.0"
+version = "14.0.0"
 
 from calendar import monthrange
 from datetime import datetime, timezone
@@ -131,9 +131,7 @@ satellites = """
                        END satellite_name,
                        sat.added_at AS satellite_added_at
                 FROM (
-                   SELECT satellite_id, interval_start FROM bandwidth_usage_rollups WHERE {time_window}
-                   UNION
-                   SELECT satellite_id, created_at interval_start FROM bandwidth_usage WHERE {time_window}
+                   SELECT satellite_id, interval_start FROM bandwidth_usage WHERE {time_window}
                    UNION
                    SELECT satellite_id, timestamp interval_start FROM su.storage_usage WHERE {time_window}
                 ) active_sat
@@ -184,14 +182,12 @@ query = """
     LEFT JOIN (
       SELECT
       satellite_id
-      ,SUM(CASE WHEN action = 1 THEN amount ELSE 0 END) put_total
-      ,SUM(CASE WHEN action = 2 THEN amount ELSE 0 END) get_total
-      ,SUM(CASE WHEN action = 3 THEN amount ELSE 0 END) get_audit_total
-      ,SUM(CASE WHEN action = 4 THEN amount ELSE 0 END) get_repair_total
-      ,SUM(CASE WHEN action = 5 THEN amount ELSE 0 END) put_repair_total
-      FROM (  SELECT satellite_id,action,amount,interval_start FROM bw.bandwidth_usage_rollups
-              UNION
-              SELECT satellite_id,action,amount,created_at interval_start FROM bw.bandwidth_usage) a
+      ,SUM(put_total) put_total
+      ,SUM(get_total) get_total
+      ,SUM(get_audit_total) get_audit_total
+      ,SUM(get_repair_total) get_repair_total
+      ,SUM(put_repair_total) put_repair_total
+      FROM bw.bandwidth_usage a
       WHERE {time_window}
       GROUP BY satellite_id
     ) a
@@ -213,7 +209,8 @@ query = """
              LAST_VALUE(at_rest_total) OVER 
             	(PARTITION BY satellite_id ORDER BY interval_end_time 
             	 RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) last_window_bh
-            FROM su.storage_usage su1)
+            FROM su.storage_usage su1
+            WHERE su1.interval_end_time <> '0001-01-01 00:00:00+00:00' /* ignore incomplete records */)
       WHERE {time_window}
       GROUP BY satellite_id
     ) c
@@ -542,6 +539,13 @@ if len(sys.argv) < 3:
     print("Estimated total by end of month\t\t\t\t\t     {}m\t{}\t${:6.2f}".format(formatSize(sum(disk_average_so_far)), formatSize(sum(bw_sum)/month_passed), usd_est_total ))
 elif len(surge_percent) > 0 and sum(surge_percent)/len(surge_percent) > 100.000001:
     print("Total Surge ({:.0f}%)\t\t\t\t\t\t\t\t\t\t${:6.2f}".format((sum(usd_sum_surge)*100) / sum(usd_sum), sum(usd_sum_surge)))
+
+if len(sys.argv) < 3:
+    if mdate.day in [1,2]:
+        print("\n*Note: Stats reported by the satellites may be inaccurate during the first few days of the month.");
+    elif sum(disk_average_so_far) > 0 and abs(sum(disk_last_report)-sum(disk_average_so_far)) > 100*10**9 and abs((sum(disk_last_report)-sum(disk_average_so_far))/(sum(disk_average_so_far) or 1)) > 0.01:
+        print("\n*Note: Disk Last Report deviates {:0.2f}% from Disk Average So Far, indicating last reported satellite stats may temporarily be inaccurate.".format(100*(sum(disk_last_report)-sum(disk_average_so_far))/sum(disk_average_so_far)));
+        print("       This will impact Disk Last Report, Uncollected Garbage and Total Unpaid Data estimation.\n       Please refrain from using this data to ask for support unless it doesn't resolve itself in a couple of days.");
 
 print("\033[4m\nPayout and held amount by satellite:\033[0m")
 
