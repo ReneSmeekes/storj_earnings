@@ -543,7 +543,7 @@ elif len(surge_percent) > 0 and sum(surge_percent)/len(surge_percent) > 100.0000
 if len(sys.argv) < 3:
     if mdate.day in [1,2]:
         print("\n*Note: Stats reported by the satellites may be inaccurate during the first few days of the month.");
-    elif sum(disk_average_so_far) > 0 and abs(sum(disk_last_report)-sum(disk_average_so_far)) > 100*10**9 and abs((sum(disk_last_report)-sum(disk_average_so_far))/(sum(disk_average_so_far) or 1)) > 0.01:
+    elif sum(disk_average_so_far) > 0 and abs(sum(disk_last_report)-sum(disk_average_so_far)) > 100*10**9 and abs((sum(disk_last_report)-sum(disk_average_so_far))/(sum(disk_average_so_far) or 1)) > 0.1:
         print("\n*Note: Disk Last Report deviates {:0.2f}% from Disk Average So Far, indicating last reported satellite stats may temporarily be inaccurate.".format(100*(sum(disk_last_report)-sum(disk_average_so_far))/sum(disk_average_so_far)));
         print("       This will impact Disk Last Report, Uncollected Garbage and Total Unpaid Data estimation.\n       Please refrain from using this data to ask for support unless it doesn't resolve itself in a couple of days.");
 
