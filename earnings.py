@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-version = "14.0.0"
+version = "14.1.0"
 
 from calendar import monthrange
 from datetime import datetime, timezone
@@ -72,8 +72,14 @@ if not os.path.isfile(dbPathH):
              + sys.argv[0] + ' "' + os.getcwd() + '"')
 
 dbPathP = os.path.join(dbPath,"pricing.db")
-if not os.path.isfile(dbPathH):
+if not os.path.isfile(dbPathP):
 	sys.exit('ERROR: pricing.db not found at: "' + dbPath + '" or "' + configPath 
+             + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' 
+             + sys.argv[0] + ' "' + os.getcwd() + '"')
+
+dbPathGC = os.path.join(dbPath,"garbage_collection_filewalker_progress.db")
+if not os.path.isfile(dbPathGC):
+	sys.exit('ERROR: garbage_collection_filewalker_progress.db not found at: "' + dbPath + '" or "' + configPath 
              + '". \nEnter the correct path for your Storj config directory as a parameter. \nExample: python ' 
              + sys.argv[0] + ' "' + os.getcwd() + '"')
 
@@ -217,21 +223,24 @@ query = """
     ON x.satellite_id = c.satellite_id
     LEFT JOIN (
       SELECT
-      satellite_id
+      rep.satellite_id
       ,CASE WHEN disqualified_at IS NOT NULL THEN 'Disqualified @ ' || datetime(disqualified_at)
             WHEN suspended_at IS NOT NULL THEN 'Suspended Audits @ ' || datetime(suspended_at)
             WHEN offline_suspended_at IS NOT NULL THEN 'Suspended Downt. @ ' || datetime(offline_suspended_at)
-            WHEN offline_under_review_at IS NOT NULL THEN 'Downtime review @ ' || datetime(offline_under_review_at)
+            WHEN offline_under_review_at IS NOT NULL THEN 'Downtime Review @ ' || datetime(offline_under_review_at)
             WHEN audit_success_count < {audit_req} THEN 'Vetting '
             WHEN audit_reputation_score < 0.998 OR audit_unknown_reputation_score < 0.998 THEN 'WARN: Audits failing'
             WHEN online_score < 0.98 THEN 'WARN: Downtime high'
+            WHEN last_checked_prefix IS NOT NULL THEN 'GC @ Folder:' || last_checked_prefix || ' Date:' || date(bloomfilter_created_before)
             ELSE 'OK' END AS rep_status
       ,date(joined_at) AS joined_at
       ,MIN(audit_success_count, {audit_req}) AS vet_count
       ,100.0*online_score AS uptime_score
       ,((1-audit_reputation_score)*100.0)/(1.0-{dq_threshold}) AS audit_score
       ,((1-audit_unknown_reputation_score)*100.0)/(1.0-{suspension_threshold}) AS audit_suspension_score
-      FROM r.reputation
+      FROM r.reputation rep
+      LEFT JOIN gc.progress gcs
+      ON rep.satellite_id = gcs.satellite_id
     ) d
     ON x.satellite_id = d.satellite_id
     LEFT JOIN (
@@ -308,6 +317,9 @@ con.execute('ATTACH DATABASE ? AS h;',tH)
 
 tP = (dbPathP,)
 con.execute('ATTACH DATABASE ? AS p;',tP)
+
+tGC = (dbPathGC,)
+con.execute('ATTACH DATABASE ? AS gc;',tGC)
 
 sat_name = list()
 put = list()
