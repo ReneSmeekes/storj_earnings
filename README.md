@@ -69,6 +69,26 @@ Earnings for previous months:
 python earnings.py /path/to/storj/data 2023-03
 ```
 
+## Running in a Docker container
+If you are running your storage node containerized, you may want to also run this script in the same way.
+
+To prepare the container, run:
+```
+curl -sSL https://raw.githubusercontent.com/ReneSmeekes/storj_earnings/master/Dockerfile | docker build -t storj/earnings -
+```
+As long as the image remains cached locally, you don't need to run this command again, until the earnings.py script is updated on GitHub and you want to update to the newest version.
+
+To display your earnings, run:
+```
+docker run --rm -tv /path/to/storj/data:/storj_data storj/earnings
+```
+Make sure to replace /path/to/storj/data to the actual absolute path to your storj data folder.
+
+You may add the year/month at the end of the command to display earnings for previous months:
+```
+docker run --rm -tv /path/to/storj/data:/storj_data storj/earnings 2023-03
+```
+
 ## Example previous months:
 ```
 February 2021 (Version: 13.4.0)
