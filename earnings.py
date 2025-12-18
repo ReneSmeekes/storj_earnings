@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-version = "14.2.0"
+version = "14.3.0"
 
 from calendar import monthrange
 from datetime import datetime, timezone
@@ -11,6 +11,7 @@ import sys
 import sqlite3
 
 audit_req = '100'
+audit_hours = '504'
 
 zksync_bonus = 1.03
 exponential_audit_perc = 40
@@ -140,6 +141,8 @@ satellites = """
                    SELECT satellite_id, interval_start FROM bandwidth_usage WHERE {time_window}
                    UNION
                    SELECT satellite_id, timestamp interval_start FROM su.storage_usage WHERE {time_window}
+                   UNION
+                   SELECT satellite_id, null FROM psu.piece_space_used WHERE satellite_id <> 'trashtotal'
                 ) active_sat
                 LEFT JOIN satellites sat
                 ON active_sat.satellite_id = sat.node_id
@@ -161,6 +164,7 @@ query = """
     ,COALESCE(p.get_audit_payout,0) get_audit_payout
     ,COALESCE(d.rep_status,'') rep_status
     ,COALESCE(d.vet_count,0) vet_count
+    ,COALESCE(d.vet_hours,0) vet_hours
     ,COALESCE(d.uptime_score,0) uptime_score
     ,COALESCE(d.audit_score,0) audit_score
     ,COALESCE(d.audit_suspension_score,0) audit_suspension_score
@@ -235,6 +239,7 @@ query = """
             ELSE 'OK' END AS rep_status
       ,date(joined_at) AS joined_at
       ,audit_success_count AS vet_count
+      ,(strftime('%s', 'now') - strftime('%s', joined_at)) / 3600.0 AS vet_hours
       ,100.0*online_score AS uptime_score
       ,((1-audit_reputation_score)*100.0)/(1.0-{dq_threshold}) AS audit_score
       ,((1-audit_unknown_reputation_score)*100.0)/(1.0-{suspension_threshold}) AS audit_suspension_score
@@ -294,7 +299,7 @@ query = """
     ) p
     ON x.satellite_id = p.satellite_id
     ORDER BY CAST(COALESCE(x.satellite_added_at, '9999-12-31') AS date), x.satellite_name;
-""".format(satellites=satellites, time_window=time_window, audit_req=audit_req, year_month_char=year_month_char, 
+""".format(satellites=satellites, time_window=time_window, year_month_char=year_month_char, 
            year_month_prev_char=year_month_prev_char, date_from=date_from.strftime("%Y-%m-%d"), 
            dq_threshold=dq_threshold, suspension_threshold=suspension_threshold)
 
@@ -353,6 +358,7 @@ usd_sum_surge = list()
 
 rep_status = list()
 vet_count = list()
+vet_hours = list()
 uptime_score = list()
 audit_score = list()
 audit_suspension_score = list()
@@ -420,7 +426,7 @@ for data in con.execute(query):
     usd_get_repair.append((get_repair_payout[-1] / (1000.00**4)) * get_repair[-1])
     usd_bh.append((bh_payout[-1] / (1000.00**4)) * (bh[-1] / hours_month))
     
-    surge_percent.append(data[18])
+    surge_percent.append(data[19])
 
     usd_get_surge.append((usd_get[-1] * surge_percent[-1]) / 100)
     usd_get_audit_surge.append((usd_get_audit[-1] * surge_percent[-1]) / 100)
@@ -431,47 +437,51 @@ for data in con.execute(query):
     usd_sum_surge.append(((usd_get[-1] + usd_get_audit[-1] + usd_get_repair[-1] + usd_bh[-1]) * surge_percent[-1]) / 100)
     
     if data[12] == 'Vetting ':
-        if float(data[13]) >= float(audit_req):
+        if float(data[13]) >= float(audit_req) and float(data[14]) >= float(audit_hours):
             rep_status.append('Vetting result pending > {:d}/{:d} Audits'.format(int(data[13]), int(audit_req))) 
         else:
             rep_status.append('{:d}% Vetted > {:d}/{:d} Audits'.format(
-                int(round(exponential_audit_perc*(log(float(data[13])+1))/log(float(audit_req)+1) + 
-                (100-exponential_audit_perc)*(float(data[13])/float(audit_req)))), int(data[13]), int(audit_req)) 
+                int(min(
+                    round(exponential_audit_perc*(log(float(data[13])+1))/log(float(audit_req)+1) + #exponential part
+                        (100-exponential_audit_perc)*(float(data[13])/float(audit_req))), #linear part
+                    100*data[14]/float(audit_hours))), #time based
+                int(data[13]), int(audit_req)) 
             )
     else:
         rep_status.append(data[12])
-    uptime_score.append(data[14])
-    audit_score.append(data[15])
-    audit_suspension_score.append(data[16])
     
-    sat_start_dt.append(data[17])
+    uptime_score.append(data[15])
+    audit_score.append(data[16])
+    audit_suspension_score.append(data[17])
     
-    held_so_far.append(data[19])
-    disp_so_far.append(data[20])
-    postponed_so_far.append(data[21])
+    sat_start_dt.append(data[18])
     
-    disposed.append(data[22])
-    payout.append(data[23])
-    paid_out.append(data[24])
-    postponed.append(data[25])
-    paid_prev_month.append(data[26])
+    held_so_far.append(data[20])
+    disp_so_far.append(data[21])
+    postponed_so_far.append(data[22])
+    
+    disposed.append(data[23])
+    payout.append(data[24])
+    paid_out.append(data[25])
+    postponed.append(data[26])
+    paid_prev_month.append(data[27])
 
-    receipt.append(data[27])
-    receipt_amount.append(data[28])
+    receipt.append(data[28])
+    receipt_amount.append(data[29])
     
     if "https://zkscan.io/" in receipt[-1]:
         paid_incl_bonus.append(paid_out[-1] * zksync_bonus)
     else:
         paid_incl_bonus.append(paid_out[-1])
     
-    month_nr.append(data[29])
+    month_nr.append(data[30])
 
-    pay_status.append(data[30])
+    pay_status.append(data[31])
 
-    seconds_bh_included.append(data[31])
+    seconds_bh_included.append(data[32])
     disk_average_so_far.append((bh[-1]*3600.0)/seconds_bh_included[-1])
     
-    disk_last_report.append(data[32])
+    disk_last_report.append(data[33])
 
     if month_nr[-1] >= 1 and month_nr[-1] <= 3:
         held_perc.append(.75)
@@ -518,8 +528,12 @@ usd_est_get = sum(usd_get)/month_passed
 usd_est_get_repair = sum(usd_get_repair)/month_passed
 usd_est_get_audit = sum(usd_get_audit)/month_passed
 usd_est_total = usd_est_bh + usd_est_get + usd_est_get_repair + usd_est_get_audit
-usd_est_held = usd_est_total * sum(held_sum)/sum(usd_sum)
-usd_est_paid = usd_est_total * sum(paid_sum)/sum(usd_sum)
+if sum(usd_sum) > 0:
+    usd_est_held = usd_est_total * sum(held_sum)/sum(usd_sum)
+    usd_est_paid = usd_est_total * sum(paid_sum)/sum(usd_sum)
+else:
+    usd_est_held = 0
+    usd_est_paid = 0
 
 if len(sys.argv) == 3:
     print("\033[4m{} (Version: {})\033[0m".format(mdate.strftime('%B %Y'), version))    
